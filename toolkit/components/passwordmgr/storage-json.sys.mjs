@@ -181,7 +181,7 @@ export class LoginManagerStorage_json {
     this._store.ensureDataReady();
 
     // This will also find deleted items.
-    let login = this._store.data.logins.find(login => login.guid == guid);
+    let login = this._store.data.logins.find(l => l.guid == guid);
     if (login?.syncCounter > 0) {
       login.syncCounter = Math.max(0, login.syncCounter - value);
       login.everSynced = true;
@@ -331,14 +331,14 @@ export class LoginManagerStorage_json {
 
     let foundIndex = this._store.data.logins.findIndex(l => l.id == idToDelete);
     if (foundIndex != -1) {
-      let login = this._store.data.logins[foundIndex];
-      if (!login.deleted) {
+      const foundLogin = this._store.data.logins[foundIndex];
+      if (!foundLogin.deleted) {
         if (fromSync) {
-          this.#replaceLoginWithTombstone(login);
-        } else if (login.everSynced) {
+          this.#replaceLoginWithTombstone(foundLogin);
+        } else if (foundLogin.everSynced) {
           // The login has been synced, so mark it as deleted.
-          this.#incrementSyncCounter(login);
-          this.#replaceLoginWithTombstone(login);
+          this.#incrementSyncCounter(foundLogin);
+          this.#replaceLoginWithTombstone(foundLogin);
         } else {
           // The login was never synced, so just remove it from the data.
           this._store.data.logins.splice(foundIndex, 1);
@@ -620,7 +620,7 @@ export class LoginManagerStorage_json {
     }
 
     this.log(
-      `Returning ${foundLogins.length} logins for specified origin with options ${aOptions}`
+      `Returning ${foundLogins.length} logins for specified origin with options ${JSON.stringify(aOptions)}`
     );
     return [foundLogins, foundIds];
   }
@@ -657,9 +657,9 @@ export class LoginManagerStorage_json {
     this._store.ensureDataReady();
     this.log("Removing all logins.");
 
-    let removedLogins = [];
-    let remainingLogins = [];
-    for (let login of this._store.data.logins) {
+    const removedLogins = [];
+    const remainingLogins = [];
+    for (const login of this._store.data.logins) {
       if (
         !removeFXALogin &&
         isFXAHost(login) &&
@@ -667,7 +667,33 @@ export class LoginManagerStorage_json {
       ) {
         remainingLogins.push(login);
       } else {
-        removedLogins.push(login);
+        // Create the nsLoginInfo object which to emit
+        const loginInfo = Cc[
+          "@mozilla.org/login-manager/loginInfo;1"
+        ].createInstance(Ci.nsILoginInfo);
+        loginInfo.init(
+          login.hostname,
+          login.formSubmitURL,
+          login.httpRealm,
+          login.encryptedUsername,
+          login.encryptedPassword,
+          login.usernameField,
+          login.passwordField
+        );
+        // set nsILoginMetaInfo values
+        loginInfo.QueryInterface(Ci.nsILoginMetaInfo);
+        loginInfo.guid = login.guid;
+        loginInfo.timeCreated = login.timeCreated;
+        loginInfo.timeLastUsed = login.timeLastUsed;
+        loginInfo.timePasswordChanged = login.timePasswordChanged;
+        loginInfo.timesUsed = login.timesUsed;
+        loginInfo.syncCounter = login.syncCounter;
+        loginInfo.everSynced = login.everSynced;
+
+        // Any unknown fields along for the ride
+        loginInfo.unknownFields = login.encryptedUnknownFields;
+
+        removedLogins.push(loginInfo);
         if (!fullyRemove && login?.everSynced) {
           // The login has been synced, so mark it as deleted.
           this.#incrementSyncCounter(login);
@@ -1071,6 +1097,22 @@ export class LoginManagerStorage_json {
     }
 
     return result;
+  }
+
+  // Compute a sha256 sum over the json file; If the file does not exist, return null.
+  // Used for rolling migration.
+  async computeShasum() {
+    let sha;
+    try {
+      sha = await this._store.computeHexDigest("sha256");
+    } catch (e) {
+      // I'd expect this to be a NS_ERROR_FILE_NOT_FOUND, but computeHexDigest
+      // returns NS_ERROR_DOM_NOT_FOUND_ERR instead
+      if (e.result != Cr.NS_ERROR_DOM_NOT_FOUND_ERR) {
+        throw e;
+      }
+    }
+    return sha;
   }
 }
 
