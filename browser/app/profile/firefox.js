@@ -2744,6 +2744,12 @@ pref("signon.showAutoCompleteFooter", true);
 pref("signon.showAutoCompleteImport", "import");
 pref("signon.suggestImportCount", 3);
 
+#ifdef NIGHTLY_BUILD
+  pref("signon.loginsRustMirror.enabled", true);
+#else
+  pref("signon.loginsRustMirror.enabled", false);
+#endif
+
 // Whether or not the browser should scan for unsubmitted
 // crash reports, and then show a notification for submitting
 // those reports.

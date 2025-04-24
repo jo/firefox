@@ -43,6 +43,7 @@ EXTRA_JS_MODULES += [
     "LoginRelatedRealms.sys.mjs",
     "PasswordRulesManager.sys.mjs",
     "storage-json.sys.mjs",
+    "storage-rust.sys.mjs",
 ]
 
 EXTRA_JS_MODULES.shared += [

@@ -838,6 +838,71 @@ pwmgr:
     no_lint:
       - UNIT_IN_NAME
 
+  diff_saved_passwords_rust:
+    type: quantity
+    unit: passwords
+    lifetime: application
+    description: |
+      Records any difference in the number of saved logins between JSON
+      storage and Rust storage.
+    bugs:
+      - TODO open Bug
+    data_reviews:
+      - TODO submit Datareview
+    notification_emails:
+      - passwords-dev@mozilla.org
+    expires: never
+    no_lint:
+      - UNIT_IN_NAME
+
+  rust_migration_failure:
+    type: event
+    description: >
+      Records failures from operations in the Rust password store, including
+      the operation type and error message.
+    bugs:
+      - TODO open Bug
+    data_reviews:
+      - TODO submit Datareview
+    notification_emails:
+      - passwords-dev@mozilla.org
+    expires: never
+    extra_keys:
+      operation:
+        description: >
+          The type of operation that failed (e.g. "add", "modify", "remove", "migration", etc.).
+        type: string
+      error_message:
+        description: >
+          The error message or exception string from the failure.
+        type: string
+      login_id:
+        description: >
+          The GUID of the login involved in the failure, if applicable.
+        type: string
+
+  rust_incompatible_login_format:
+    type: labeled_counter
+    lifetime: application
+    description: |
+      Counts how often logins contain non-ASCII characters in the `origin` or
+      `formActionOrigin` are automatically converted
+      to Punycode for rust store. Labels distinguish which field was affected.
+    labels:
+    - dotOrigin
+    - dotFormAction
+    - nonAsciiOrigin
+    - nonAsciiFormAction
+    bugs:
+      - TODO open Bug
+    data_reviews:
+      - TODO submit Datareview
+    notification_emails:
+      - passwords-dev@mozilla.org
+    expires: never
+    no_lint:
+      - UNIT_IN_NAME
+
   saving_enabled:
     type: boolean
     lifetime: application
