@@ -65,3 +65,10 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
       : this.#rustMirror.disable();
   }
 }
+
+function recordPasswordCountDiff(jsonStorage, rustStorage) {
+  const jsonCount = jsonStorage.countLogins("", "", "");
+  const rustCount = rustStorage.countLogins("", "", "");
+  const diff = jsonCount - rustCount;
+  Glean.pwmgr.diffSavedPasswordsRust.set(diff);
+}
