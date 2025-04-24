@@ -27,6 +27,9 @@ const { LoginTestUtils } = ChromeUtils.importESModule(
 const { MockDocument } = ChromeUtils.importESModule(
   "resource://testing-common/MockDocument.sys.mjs"
 );
+const { initialize: initRustComponents } = ChromeUtils.importESModule(
+  "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustInitRustComponents.sys.mjs"
+);
 
 const lazy = {};
 
@@ -75,6 +78,8 @@ const RecipeHelpers = {
 // Initialization functions common to all tests
 
 add_setup(async function test_common_initialize() {
+  await initRustComponents();
+
   // Before initializing the service for the first time, we should copy the key
   // file required to decrypt the logins contained in the SQLite databases used
   // by migration tests.  This file is not required for the other tests.

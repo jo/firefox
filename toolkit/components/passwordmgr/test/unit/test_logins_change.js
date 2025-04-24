@@ -265,7 +265,7 @@ add_task(async function test_invalid_characters() {
     TestData.formLogin({ password: "pass\0word" }),
   ];
   for (let loginInfo of loginList) {
-    await checkLoginInvalid(loginInfo, /login values can't contain nulls/);
+    await checkLoginInvalid(loginInfo, /(login values can't contain nulls)|(Login has illegal field)/);
   }
 });
 

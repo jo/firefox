@@ -3,18 +3,27 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { LoginManagerStorage_json } from "resource://gre/modules/storage-json.sys.mjs";
+import { LoginManagerRustStorage } from "resource://gre/modules/storage-rust.sys.mjs";
 
 export class LoginManagerStorage extends LoginManagerStorage_json {
   static #storage = null;
+  static #rustStorage = null;
 
   static create(callback) {
     if (!LoginManagerStorage.#storage) {
       LoginManagerStorage.#storage = new LoginManagerStorage();
-      LoginManagerStorage.#storage.initialize().then(callback);
+      LoginManagerStorage.#rustStorage = new LoginManagerRustStorage();
+
+      Promise.all([
+        LoginManagerStorage.#storage.initialize(),
+        LoginManagerStorage.#rustStorage.initialize(),
+      ]).then(callback);
     } else if (callback) {
       callback();
     }
 
-    return LoginManagerStorage.#storage;
+    // TODO: switch storage endpoints
+    // return LoginManagerStorage.#storage;
+    return LoginManagerStorage.#rustStorage;
   }
 }
