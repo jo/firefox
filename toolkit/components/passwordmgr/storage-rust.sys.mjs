@@ -1,3 +1,5 @@
+/* eslint-disable no-console */
+
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -15,11 +17,19 @@ ChromeUtils.defineESModuleGetters(lazy, {
   LoginHelper: "resource://gre/modules/LoginHelper.sys.mjs",
 
   // how can we group this, without repeating the source?
-  LoginEntry: "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustLogins.sys.mjs",
-  LoginStore: "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustLogins.sys.mjs",
+  LoginEntry:
+    "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustLogins.sys.mjs",
+  LoginMeta:
+    "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustLogins.sys.mjs",
+  LoginEntryWithMeta:
+    "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustLogins.sys.mjs",
   createLoginStoreWithStaticKeyManager:
     "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustLogins.sys.mjs",
 });
+
+const { initialize: initRustComponents } = ChromeUtils.importESModule(
+  "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustInitRustComponents.sys.mjs"
+);
 
 const LoginInfo = Components.Constructor(
   "@mozilla.org/login-manager/loginInfo;1",
@@ -41,6 +51,20 @@ const loginInfoToLoginEntry = loginInfo =>
     passwordField: loginInfo.passwordField,
     username: loginInfo.username,
     password: loginInfo.password,
+  });
+
+// Convert a LoginInfo to a LoginEntryWithMeta, to be used for migrating
+// records between legacy and Rust storage.
+const loginInfoToLoginEntryWithMeta = loginInfo =>
+  new lazy.LoginEntryWithMeta({
+    entry: loginInfoToLoginEntry(loginInfo),
+    meta: new lazy.LoginMeta({
+      id: loginInfo.guid,
+      timesUsed: loginInfo.timesUsed,
+      timeCreated: loginInfo.timeCreated,
+      timeLastUsed: loginInfo.timeLastUsed,
+      timePasswordChanged: loginInfo.timePasswordChanged,
+    }),
   });
 
 // Convert a Login instance, as returned from Rust Logins, to a LoginInfo
@@ -70,7 +94,7 @@ const loginToLoginInfo = login => {
   loginInfo.unknownFields = login.encryptedUnknownFields;
   */
 
-  return loginInfo
+  return loginInfo;
 };
 
 // An adapter which talks to the Rust Logins Store via LoginInfo objects
@@ -78,17 +102,22 @@ class RustLoginsStoreAdapter {
   #store = null;
 
   constructor(store) {
-    this.#store = store
+    this.#store = store;
+  }
+
+  get(id) {
+    const login = this.#store.get(id);
+    return login && loginToLoginInfo(login);
   }
 
   list() {
     const logins = this.#store.list();
-    return logins.map(loginToLoginInfo)
+    return logins.map(loginToLoginInfo);
   }
 
   update(id, loginInfo) {
     const loginEntry = loginInfoToLoginEntry(loginInfo);
-    const login = this.#store.update(id, loginEntry)
+    const login = this.#store.update(id, loginEntry);
     return loginToLoginInfo(login);
   }
 
@@ -98,8 +127,34 @@ class RustLoginsStoreAdapter {
     return loginToLoginInfo(login);
   }
 
+  addWithMeta(loginInfo) {
+    const loginEntryWithMeta = loginInfoToLoginEntryWithMeta(loginInfo);
+    const login = this.#store.addWithMeta(loginEntryWithMeta);
+    return loginToLoginInfo(login);
+  }
+
+  addManyWithMeta(loginInfos) {
+    const loginEntriesWithMeta = loginInfos.map(loginInfoToLoginEntryWithMeta);
+    const results = this.#store.addManyWithMeta(loginEntriesWithMeta);
+    return results
+      .filter(result => "login" in result)
+      .map(({ login }) => loginToLoginInfo(login));
+  }
+
   delete(id) {
-    return this.#store.delete(id)
+    return this.#store.delete(id);
+  }
+
+  deleteMany(ids) {
+    return this.#store.deleteMany(ids);
+  }
+
+  // reset() {
+  //   return this.#store.reset()
+  // }
+
+  wipeLocal() {
+    return this.#store.wipeLocal();
   }
 
   touch(id) {
@@ -109,32 +164,35 @@ class RustLoginsStoreAdapter {
   findLoginToUpdate(loginInfo) {
     const loginEntry = loginInfoToLoginEntry(loginInfo);
     const login = this.#store.findLoginToUpdate(loginEntry);
-    return loginToLoginInfo(login);
+    return login && loginToLoginInfo(login);
   }
 }
 
 export class LoginManagerRustStorage {
   #store = null;
 
+  get store() {
+    return this.#store;
+  }
+
   initialize() {
     try {
-      const path = `${Services.dirsvc.get("ProfD", Ci.nsIFile).path}/logins.db`;
+      const profilePath = Services.dirsvc.get("ProfD", Ci.nsIFile).path;
+      const path = `${profilePath}/logins.db`;
 
       return (async () => {
         console.log(`Initializing Rust login storage at ${path}`);
+  
+        await initRustComponents(profilePath);
 
         // using a static, predefined key for development
         const key =
           '{\"kty\":\"oct\",\"k\":\"0YqHUnEcQEMLEs7ftX1j0TMJ80876EqnKNSTx1YYnzM\"}';
         console.log(`using key: ${key}`);
 
-        const store = lazy.createLoginStoreWithStaticKeyManager(
-          path,
-          key
-        );
+        const store = lazy.createLoginStoreWithStaticKeyManager(path, key);
         this.#store = new RustLoginsStoreAdapter(store);
         console.log("Rust login storage ready.");
-        console.log(JSON.stringify(this.#store));
       })().catch(console.error);
     } catch (e) {
       this.log(`Initialization failed ${e.name}.`);
@@ -188,13 +246,17 @@ export class LoginManagerRustStorage {
     throw Components.Exception("loginIsDeleted", Cr.NS_ERROR_NOT_IMPLEMENTED);
   }
 
+  addWithMeta(login) {
+    return this.#store.addWithMeta(login);
+  }
+
   async addLoginsAsync(logins, continueOnDuplicates = false) {
     if (logins.length === 0) {
       return logins;
     }
 
     // TODO: ignoring continueOnDuplicates for now
-    const result = [];
+    const loginsToAdd = [];
     for (const loginInfo of logins) {
       // check for duplicates
       const loginData = {
@@ -204,7 +266,9 @@ export class LoginManagerRustStorage {
       };
       const existingLogins = await this.searchLoginsAsync(loginData);
 
-      const matchingLogin = existingLogins.find(l => loginInfo.matches(l, true));
+      const matchingLogin = existingLogins.find(l =>
+        loginInfo.matches(l, true)
+      );
       if (matchingLogin) {
         if (continueOnDuplicates) {
           continue;
@@ -215,14 +279,17 @@ export class LoginManagerRustStorage {
         }
       }
 
-      const resultLoginInfo = this.#store.add(loginInfo);
-
-      // Send a notification that a login was added.
-      lazy.LoginHelper.notifyStorageChanged("addLogin", resultLoginInfo);
-      
-      result.push(resultLoginInfo);
+      loginsToAdd.push(loginInfo);
     }
-    return result;
+
+    const result = this.#store.addManyWithMeta(loginsToAdd);
+
+    // TODO: during write-only replica these events are disabled
+    // Send a notification that a login was added.
+    // lazy.LoginHelper.notifyStorageChanged("addLogin", resultLoginInfo);
+
+    // Emulate being async
+    return Promise.resolve(result);
   }
 
   modifyLogin(oldLogin, newLoginData, fromSync) {
@@ -281,10 +348,11 @@ export class LoginManagerRustStorage {
 
     this.#store.update(idToModify, newLogin);
 
-    lazy.LoginHelper.notifyStorageChanged("modifyLogin", [
-      oldStoredLogin,
-      newLogin,
-    ]);
+    // TODO: during write-only replica these events are disabled
+    // lazy.LoginHelper.notifyStorageChanged("modifyLogin", [
+    //   oldStoredLogin,
+    //   newLogin,
+    // ]);
   }
 
   recordPasswordUse(login) {
@@ -318,9 +386,12 @@ export class LoginManagerRustStorage {
   async getAllLogins(includeDeleted) {
     // TODO: `includeDeleted` is unsupported
     if (includeDeleted) {
-      throw Components.Exception("getAllLogins with includeDeleted", Cr.NS_ERROR_NOT_IMPLEMENTED);
+      throw Components.Exception(
+        "getAllLogins with includeDeleted",
+        Cr.NS_ERROR_NOT_IMPLEMENTED
+      );
     }
-    return this.#store.list();
+    return Promise.resolve(this.#store.list());
   }
 
   // The Rust API is sync atm
@@ -330,6 +401,7 @@ export class LoginManagerRustStorage {
       lazy.LoginHelper.newPropertyBag(matchData),
       includeDeleted
     );
+
     // Emulate being async:
     return Promise.resolve(result);
   }
@@ -494,10 +566,11 @@ export class LoginManagerRustStorage {
 
     const idToDelete = storedLogin.guid;
 
-    this.#store.delete(idToDelete)
+    this.#store.delete(idToDelete);
 
     Glean.pwmgr.numSavedPasswords.set(this.countLogins("", "", ""));
-    lazy.LoginHelper.notifyStorageChanged("removeLogin", storedLogin);
+    // TODO: during write-only replica these events are disabled
+    // lazy.LoginHelper.notifyStorageChanged("removeLogin", storedLogin);
   }
 
   /**
@@ -520,7 +593,7 @@ export class LoginManagerRustStorage {
   removeAllUserFacingLogins(fullyRemove) {
     this.#removeLogins(fullyRemove, false);
   }
-  
+
   /**
    * Removes all logins from storage. If removeFXALogin is true, then the FxA Sync
    * key is also removed.
@@ -535,6 +608,7 @@ export class LoginManagerRustStorage {
     const remainingLogins = [];
 
     const logins = this.#store.list();
+    const idsToDelete = [];
     for (const login of logins) {
       if (
         !removeFXALogin &&
@@ -544,8 +618,8 @@ export class LoginManagerRustStorage {
         remainingLogins.push(login);
       } else {
         removedLogins.push(login);
-        
-        this.#store.delete(login.guid);
+
+        idsToDelete.push(login.guid);
 
         // TODO: unsupported case:
         // if (!fullyRemove && login?.everSynced) {
@@ -557,11 +631,14 @@ export class LoginManagerRustStorage {
       }
     }
 
+    this.#store.deleteMany(idsToDelete);
+
     // TODO: this is the place to update these in memory stores
     // this._store.data.potentiallyVulnerablePasswords = [];
     // this._store.data.dismissedBreachAlertsByLoginGUID = {};
 
-    lazy.LoginHelper.notifyStorageChanged("removeAllLogins", removedLogins);
+    // TODO: during write-only replica these events are disabled
+    // lazy.LoginHelper.notifyStorageChanged("removeAllLogins", removedLogins);
   }
 
   findLogins(origin, formActionOrigin, httpRealm) {
