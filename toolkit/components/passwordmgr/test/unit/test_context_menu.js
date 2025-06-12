@@ -326,7 +326,7 @@ function checkLoginItems(actualItems, expectedDetails) {
       expectedLabel +=
         " (" +
         dateAndTimeFormatter.format(
-          new Date()
+          new Date(expectedDetail.login.timePasswordChanged)
         ) +
         ")";
     }

@@ -33,14 +33,12 @@ function assertMetaInfoEqual(aActual, aExpected) {
   // Check the nsILoginInfo properties.
   Assert.ok(aActual.equals(aExpected));
 
-  // Rust handles guids internally
-  // Assert.equal(aActual.guid, aExpected.guid);
-
-  // Rust handles timestamps internally
-  // Assert.equal(aActual.timeCreated, aExpected.timeCreated);
-  // Assert.equal(aActual.timeLastUsed, aExpected.timeLastUsed);
-  // Assert.equal(aActual.timePasswordChanged, aExpected.timePasswordChanged);
-  // Assert.equal(aActual.timesUsed, aExpected.timesUsed);
+  // Check the nsILoginMetaInfo properties.
+  Assert.equal(aActual.guid, aExpected.guid);
+  Assert.equal(aActual.timeCreated, aExpected.timeCreated);
+  Assert.equal(aActual.timeLastUsed, aExpected.timeLastUsed);
+  Assert.equal(aActual.timePasswordChanged, aExpected.timePasswordChanged);
+  Assert.equal(aActual.timesUsed, aExpected.timesUsed);
 }
 
 /**
@@ -97,9 +95,7 @@ add_task(async function test_addLogin_metainfo() {
 
   // A login with valid metadata should have been stored.
   gLoginMetaInfo1 = await retrieveOriginMatching(gLoginInfo1.origin);
-  // Rusts login ids look different than a usual guid but are totally fine for use with sync
-  // https://mozilla.github.io/application-services/book/rust-docs/sync_guid/struct.Guid.html
-  // Assert.ok(gLooksLikeUUIDRegex.test(gLoginMetaInfo1.guid));
+  Assert.ok(gLooksLikeUUIDRegex.test(gLoginMetaInfo1.guid));
   let creationTime = gLoginMetaInfo1.timeCreated;
   LoginTestUtils.assertTimeIsAboutNow(creationTime);
   Assert.equal(gLoginMetaInfo1.timeLastUsed, creationTime);
@@ -125,22 +121,20 @@ add_task(async function test_addLogin_metainfo() {
 
 /**
  * Tests that adding a login with a duplicate GUID throws an exception.
- *
- * Rust handles guids internally
  */
-// add_task(async function test_addLogin_metainfo_duplicate() {
-//   let loginInfo = TestData.formLogin({
-//     origin: "http://duplicate.example.com",
-//     guid: gLoginMetaInfo2.guid,
-//   });
-//   await Assert.rejects(
-//     Services.logins.addLoginAsync(loginInfo),
-//     /specified GUID already exists/
-//   );
-// 
-//   // Verify that no data was stored by the previous call.
-//   await LoginTestUtils.checkLogins([gLoginInfo1, gLoginInfo2, gLoginInfo3]);
-// });
+add_task(async function test_addLogin_metainfo_duplicate() {
+  let loginInfo = TestData.formLogin({
+    origin: "http://duplicate.example.com",
+    guid: gLoginMetaInfo2.guid,
+  });
+  await Assert.rejects(
+    Services.logins.addLoginAsync(loginInfo),
+    /specified GUID already exists/
+  );
+
+  // Verify that no data was stored by the previous call.
+  await LoginTestUtils.checkLogins([gLoginInfo1, gLoginInfo2, gLoginInfo3]);
+});
 
 /**
  * Tests that the existing metadata is not changed when modifyLogin is called
