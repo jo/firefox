@@ -257,5 +257,8 @@ sync15 = { git = "https://github.com/mozilla/application-services", rev = "b5175
 tabs = { git = "https://github.com/mozilla/application-services", rev = "b5175a2a2458834c9fdc0468d851658b0657f95b" }
 viaduct = { git = "https://github.com/mozilla/application-services", rev = "b5175a2a2458834c9fdc0468d851658b0657f95b" }
 webext-storage = { git = "https://github.com/mozilla/application-services", rev = "b5175a2a2458834c9fdc0468d851658b0657f95b" }
+logins = { git = "https://github.com/mozilla/application-services", rev = "b5175a2a2458834c9fdc0468d851658b0657f95b", features = ["keydb"] }
+init_rust_components = { git = "https://github.com/mozilla/application-services", rev = "b5175a2a2458834c9fdc0468d851658b0657f95b" }
+
 
 allocator-api2 = { path = "third_party/rust/allocator-api2" }
