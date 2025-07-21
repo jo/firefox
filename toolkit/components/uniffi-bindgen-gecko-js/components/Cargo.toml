@@ -26,6 +26,12 @@ relevancy = "0.1"
 webext-storage = "0.1"
 error-support = { version = "0.1", features = ["tracing-logging", "tracing-reporting"] }
 tracing-support = "0.1"
+logins = { version = "0.1", features = ["keydb"] }
+# TODO: declaring these dependencies below should not be neccesary, but
+# currently they are for logins
+base16 = "0.2"
+hawk = { version = "5", default-features = false }
+init_rust_components = "0.1"
 
 [features]
 # Should we depend on xpcom crates?
