@@ -16,20 +16,23 @@ ChromeUtils.defineESModuleGetters(lazy, {
 
   LoginHelper: "resource://gre/modules/LoginHelper.sys.mjs",
 
-  // how can we group this, without repeating the source?
-  LoginEntry:
-    "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustLogins.sys.mjs",
-  LoginMeta:
-    "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustLogins.sys.mjs",
-  LoginEntryWithMeta:
-    "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustLogins.sys.mjs",
-  createLoginStoreWithStaticKeyManager:
-    "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustLogins.sys.mjs",
+  AsyncShutdown: "resource://gre/modules/AsyncShutdown.sys.mjs",
 });
 
 const { initialize: initRustComponents } = ChromeUtils.importESModule(
   "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustInitRustComponents.sys.mjs"
 );
+
+const {
+  LoginEntry,
+  LoginMeta,
+  LoginEntryWithMeta,
+  PrimaryPasswordAuthenticator,
+  createLoginStoreWithNssKeymanager,
+} = ChromeUtils.importESModule(
+  "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustLogins.sys.mjs",
+);
+
 
 const LoginInfo = Components.Constructor(
   "@mozilla.org/login-manager/loginInfo;1",
@@ -43,7 +46,7 @@ const LoginInfo = Components.Constructor(
 // toolkit/components/passwordmgr/LoginInfo.sys.mjs
 // but I'd like to decouple from as many components as possible by now
 const loginInfoToLoginEntry = loginInfo =>
-  new lazy.LoginEntry({
+  new LoginEntry({
     origin: loginInfo.origin,
     httpRealm: loginInfo.httpRealm,
     formActionOrigin: loginInfo.formActionOrigin,
@@ -56,9 +59,9 @@ const loginInfoToLoginEntry = loginInfo =>
 // Convert a LoginInfo to a LoginEntryWithMeta, to be used for migrating
 // records between legacy and Rust storage.
 const loginInfoToLoginEntryWithMeta = loginInfo =>
-  new lazy.LoginEntryWithMeta({
+  new LoginEntryWithMeta({
     entry: loginInfoToLoginEntry(loginInfo),
-    meta: new lazy.LoginMeta({
+    meta: new LoginMeta({
       id: loginInfo.guid,
       timesUsed: loginInfo.timesUsed,
       timeCreated: loginInfo.timeCreated,
@@ -174,7 +177,16 @@ class RustLoginsStoreAdapter {
   setCheckpoint(checkpoint) {
     return this.#store.setCheckpoint(checkpoint);
   }
+
+  shutdown() {
+    this.#store.shutdown();
+  }
 }
+
+// TODO: this is a mock atm, as Rust Logins are not enabled for primary
+// password users. Also, a primary password entered outide of Rust will still
+// unlock the Rust encdec, because it uses the same NSS.
+class LoginStorageAuthenticator extends PrimaryPasswordAuthenticator {}
 
 export class LoginManagerRustStorage {
   #storageAdapter = null;
@@ -189,14 +201,18 @@ export class LoginManagerRustStorage {
   
         await initRustComponents(profilePath);
 
-        // using a static, predefined key for development
-        const key =
-          '{\"kty\":\"oct\",\"k\":\"0YqHUnEcQEMLEs7ftX1j0TMJ80876EqnKNSTx1YYnzM\"}';
-        this.log(`using key: ${key}`);
+        const authenticator = new LoginStorageAuthenticator();
+        const store = createLoginStoreWithNssKeymanager(path, authenticator);
 
-        const store = lazy.createLoginStoreWithStaticKeyManager(path, key);
         this.#storageAdapter = new RustLoginsStoreAdapter(store);
         this.log("Rust login storage ready.");
+
+        // Interrupt sooner prior to the `profile-before-change` phase to allow
+        // all the in-progress IOs to exit.
+        lazy.AsyncShutdown.profileChangeTeardown.addBlocker(
+          "LoginManagerRustStorage: Interrupt IO operations on login store",
+          () => this.#shutdown()
+        );
       })().catch(console.error);
     } catch (e) {
       this.log(`Initialization failed ${e.name}.`);
@@ -709,7 +725,6 @@ export class LoginManagerRustStorage {
 
   get isLoggedIn() {
     throw Components.Exception("isLoggedIn", Cr.NS_ERROR_NOT_IMPLEMENTED);
-  
   }
 
   // Retrieve checkpoint from Rust's meta storage, used for rolling migration.
@@ -720,6 +735,10 @@ export class LoginManagerRustStorage {
   // Store checkpoint in Rust's meta storage, used for rolling migration.
   setCheckpoint(checkpoint) {
     return this.#storageAdapter.setCheckpoint(checkpoint);
+  }
+
+  #shutdown() {
+    this.#storageAdapter.shutdown();
   }
 }
 
