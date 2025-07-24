@@ -1098,6 +1098,22 @@ export class LoginManagerStorage_json {
 
     return result;
   }
+
+  // Compute a sha256 sum over the json file; If the file does not exist, return null.
+  // Used for rolling migration.
+  async computeShasum() {
+    let sha;
+    try {
+      sha = await this._store.computeHexDigest("sha256");
+    } catch (e) {
+      // I'd expect this to be a NS_ERROR_FILE_NOT_FOUND, but computeHexDigest
+      // returns NS_ERROR_DOM_NOT_FOUND_ERR instead
+      if (e.result != Cr.NS_ERROR_DOM_NOT_FOUND_ERR) {
+        throw(e);
+      }
+    }
+    return sha;
+  }
 }
 
 ChromeUtils.defineLazyGetter(LoginManagerStorage_json.prototype, "log", () => {
