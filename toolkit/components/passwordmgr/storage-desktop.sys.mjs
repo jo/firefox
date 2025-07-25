@@ -93,11 +93,34 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
   static #logger = lazy.LoginHelper.createLogger("Login Manager Storage");
 
   static create(callback) {
-    LoginManagerStorage.#initialize();
+    const loginsRustMirrorEnabled =
+      Services.prefs.getBoolPref("signon.loginsRustMirror.enabled", true) &&
+      !lazy.LoginHelper.isPrimaryPasswordSet();
+
+    if (loginsRustMirrorEnabled) {
+      LoginManagerStorage.#initializeWithRustMirror(callback);
+    } else {
+      LoginManagerStorage.#initialize(callback);
+    }
     return LoginManagerStorage.#jsonStorage;
   }
 
   static #initialize(callback) {
+    if (LoginManagerStorage.#initialized) {
+      return callback?.();
+    }
+
+    LoginManagerStorage.#jsonStorage = new LoginManagerStorage_json();
+
+    return LoginManagerStorage.#jsonStorage
+      .initialize()
+      .then(() => {
+        LoginManagerStorage.#initialized = true;
+      })
+      .then(() => callback?.());
+  }
+
+  static #initializeWithRustMirror(callback) {
     if (LoginManagerStorage.#initialized) {
       return callback?.();
     }
@@ -108,33 +131,37 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
     return Promise.all([
       LoginManagerStorage.#jsonStorage.initialize(),
       LoginManagerStorage.#rustStorage.initialize(),
-    ]).then(async () => {
-      LoginManagerStorage.#logger.log("Oh jeay, I have initialized both stores")
-      try {
-        await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(
-          LoginManagerStorage.#jsonStorage,
+    ])
+      .then(async () => {
+        LoginManagerStorage.#logger.log(
+          "Oh jeay, I have initialized both stores"
+        );
+        try {
+          await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(
+            LoginManagerStorage.#jsonStorage,
+            LoginManagerStorage.#rustStorage
+          );
+        } catch (e) {
+          LoginManagerStorage.#logger.error("Login migration failed", e);
+        }
+
+        if (this.#mirroringObserver) {
+          Services.obs.removeObserver(
+            this.#mirroringObserver,
+            "passwordmgr-storage-changed"
+          );
+        }
+        this.#mirroringObserver = new MirroringObserver(
           LoginManagerStorage.#rustStorage
         );
-      } catch (e) {
-        LoginManagerStorage.#logger.error("Login migration failed", e);
-      }
-
-      if (this.#mirroringObserver) {
-        Services.obs.removeObserver(
+        Services.obs.addObserver(
           this.#mirroringObserver,
           "passwordmgr-storage-changed"
         );
-      }
-      this.#mirroringObserver = new MirroringObserver(
-        LoginManagerStorage.#rustStorage
-      );
-      Services.obs.addObserver(
-        this.#mirroringObserver,
-        "passwordmgr-storage-changed"
-      );
 
-      LoginManagerStorage.#initialized = true;
-    }).then(() => callback?.());
+        LoginManagerStorage.#initialized = true;
+      })
+      .then(() => callback?.());
   }
 
   static async maybeRunRollingMigrationToRustStorage(jsonStorage, rustStorage) {
@@ -144,7 +171,9 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
     const rustCheckpoint = rustStorage.getCheckpoint();
 
     if (jsonChecksum && jsonChecksum !== rustCheckpoint) {
-      LoginManagerStorage.#logger.log("Checksums differ. Rolling migration required.");
+      LoginManagerStorage.#logger.log(
+        "Checksums differ. Rolling migration required."
+      );
 
       rustStorage.removeAllLogins();
       LoginManagerStorage.#logger.log("Cleared existing Rust logins.");
@@ -152,10 +181,14 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
       const logins = await jsonStorage.getAllLogins();
 
       await rustStorage.addLoginsAsync(logins);
-      LoginManagerStorage.#logger.log(`Successfully migrated ${logins.length} logins.`);
+      LoginManagerStorage.#logger.log(
+        `Successfully migrated ${logins.length} logins.`
+      );
 
       rustStorage.setCheckpoint(jsonChecksum);
-      LoginManagerStorage.#logger.log("Migration complete. Checkpoint updated.");
+      LoginManagerStorage.#logger.log(
+        "Migration complete. Checkpoint updated."
+      );
     } else {
       LoginManagerStorage.#logger.log("Checksums match. No migration needed.");
     }
