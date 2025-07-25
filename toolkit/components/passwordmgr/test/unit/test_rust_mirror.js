@@ -8,8 +8,8 @@
 const { LoginManagerRustStorage } = ChromeUtils.importESModule(
   "resource://gre/modules/storage-rust.sys.mjs"
 );
-const { maybeRunRollingMigrationToRustStorage } = ChromeUtils.importESModule(
-  "resource://gre/modules/storage-desktop.sys.mjs"
+const { LoginStore } = ChromeUtils.importESModule(
+  "resource://gre/modules/LoginStore.sys.mjs"
 );
 const sinon = ChromeUtils.importESModule(
   "resource://testing-common/Sinon.sys.mjs"
@@ -119,7 +119,7 @@ add_task(async function test_rolling_migration_initial_copy() {
   const rustStorage = new LoginManagerRustStorage();
   await rustStorage.initialize();
 
-  await maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage);
+  await LoginStore.maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage);
 
   const [jsonLogins] = await Services.logins.getAllLogins();
   const rustLogins = await rustStorage.getAllLogins();
@@ -144,12 +144,12 @@ add_task(async function test_migration_is_idempotent() {
   await rustStore.initialize();
 
   // First migration
-  await maybeRunRollingMigrationToRustStorage(Services.logins, rustStore);
+  await LoginStore.maybeRunRollingMigrationToRustStorage(Services.logins, rustStore);
   let loginsAfterFirst = await rustStore.getAllLogins();
   Assert.equal(loginsAfterFirst.length, 1, "Login copied on first migration");
 
   // Second migration (simulate re-run)
-  await maybeRunRollingMigrationToRustStorage(Services.logins, rustStore);
+  await LoginStore.maybeRunRollingMigrationToRustStorage(Services.logins, rustStore);
   let loginsAfterSecond = await rustStore.getAllLogins();
   Assert.equal(
     loginsAfterSecond.length,
@@ -173,7 +173,7 @@ add_task(async function test_rolling_migration_drops_rust_on_checksum_change() {
   await rustStorage.initialize();
 
   // Step 2: Run first migration
-  await maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage);
+  await LoginStore.maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage);
 
   let rustLogins = await rustStorage.getAllLogins();
   LoginTestUtils.assertLoginListsEqual(
@@ -191,7 +191,7 @@ add_task(async function test_rolling_migration_drops_rust_on_checksum_change() {
   await Services.logins.addLoginAsync(newLogin);
 
   // Step 4: Run second migration (checksum mismatch expected)
-  await maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage);
+  await LoginStore.maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage);
 
   let rustLoginsAfter = await rustStorage.getAllLogins();
   LoginTestUtils.assertLoginListsEqual(
@@ -243,13 +243,13 @@ add_task(async function test_avoid_redundant_updates() {
   await rustStorage.initialize();
 
   // First migration - triggers real copy
-  await maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage);
+  await LoginStore.maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage);
 
   // Stub addLoginAsync to observe the second call
   const stub = sinon.stub(rustStorage, "addLoginAsync");
 
   // Second migration - should not call addLoginAsync again
-  await maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage);
+  await LoginStore.maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage);
 
   Assert.ok(stub.notCalled, "Should skip unchanged login migration");
 
@@ -279,7 +279,7 @@ add_task(async function test_migration_aborts_on_partial_failure() {
 
   try {
     await Assert.rejects(
-      () => maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage),
+      () => LoginStore.maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage),
       /Simulated migration failure/,
       "Migration should fail when one login fails to copy"
     );
@@ -310,7 +310,7 @@ add_task(async function test_migration_time_under_threshold() {
   await rustStorage.initialize();
 
   const start = Date.now();
-  await maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage);
+  await LoginStore.maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage);
   const duration = Date.now() - start;
 
   Assert.less(duration, 1000, "Migration should complete under 1s");

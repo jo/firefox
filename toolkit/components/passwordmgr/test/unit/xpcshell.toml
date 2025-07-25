@@ -107,6 +107,7 @@ skip-if = ["os == 'android'"]
 skip-if = ["os == 'android'"]
 
 ["test_rust_mirror.js"]
+skip-if = ["os == 'android'"]
 
 ["test_search_schemeUpgrades.js"]
 

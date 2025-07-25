@@ -166,14 +166,18 @@ class RustLoginsStoreAdapter {
     const login = this.#store.findLoginToUpdate(loginEntry);
     return login && loginToLoginInfo(login);
   }
+
+  getCheckpoint() {
+    return this.#store.getCheckpoint();
+  }
+
+  setCheckpoint(checkpoint) {
+    return this.#store.setCheckpoint(checkpoint);
+  }
 }
 
 export class LoginManagerRustStorage {
-  #store = null;
-
-  get store() {
-    return this.#store;
-  }
+  #storageAdapter = null;
 
   initialize() {
     try {
@@ -181,18 +185,18 @@ export class LoginManagerRustStorage {
       const path = `${profilePath}/logins.db`;
 
       return (async () => {
-        console.log(`Initializing Rust login storage at ${path}`);
+        this.log(`Initializing Rust login storage at ${path}`);
   
         await initRustComponents(profilePath);
 
         // using a static, predefined key for development
         const key =
           '{\"kty\":\"oct\",\"k\":\"0YqHUnEcQEMLEs7ftX1j0TMJ80876EqnKNSTx1YYnzM\"}';
-        console.log(`using key: ${key}`);
+        this.log(`using key: ${key}`);
 
         const store = lazy.createLoginStoreWithStaticKeyManager(path, key);
-        this.#store = new RustLoginsStoreAdapter(store);
-        console.log("Rust login storage ready.");
+        this.#storageAdapter = new RustLoginsStoreAdapter(store);
+        this.log("Rust login storage ready.");
       })().catch(console.error);
     } catch (e) {
       this.log(`Initialization failed ${e.name}.`);
@@ -247,7 +251,7 @@ export class LoginManagerRustStorage {
   }
 
   addWithMeta(login) {
-    return this.#store.addWithMeta(login);
+    return this.#storageAdapter.addWithMeta(login);
   }
 
   async addLoginsAsync(logins, continueOnDuplicates = false) {
@@ -282,7 +286,7 @@ export class LoginManagerRustStorage {
       loginsToAdd.push(loginInfo);
     }
 
-    const result = this.#store.addManyWithMeta(loginsToAdd);
+    const result = this.#storageAdapter.addManyWithMeta(loginsToAdd);
 
     // TODO: during write-only replica these events are disabled
     // Send a notification that a login was added.
@@ -293,7 +297,7 @@ export class LoginManagerRustStorage {
   }
 
   modifyLogin(oldLogin, newLoginData, fromSync) {
-    const oldStoredLogin = this.#store.findLoginToUpdate(oldLogin);
+    const oldStoredLogin = this.#storageAdapter.findLoginToUpdate(oldLogin);
 
     if (!oldStoredLogin) {
       throw new Error("No matching logins");
@@ -346,7 +350,7 @@ export class LoginManagerRustStorage {
     //   // this.#incrementSyncCounter(newLogin);
     // }
 
-    this.#store.update(idToModify, newLogin);
+    this.#storageAdapter.update(idToModify, newLogin);
 
     // TODO: during write-only replica these events are disabled
     // lazy.LoginHelper.notifyStorageChanged("modifyLogin", [
@@ -356,13 +360,13 @@ export class LoginManagerRustStorage {
   }
 
   recordPasswordUse(login) {
-    const oldStoredLogin = this.#store.findLoginToUpdate(login);
+    const oldStoredLogin = this.#storageAdapter.findLoginToUpdate(login);
 
     if (!oldStoredLogin) {
       throw new Error("No matching logins");
     }
 
-    this.#store.touch(oldStoredLogin.guid);
+    this.#storageAdapter.touch(oldStoredLogin.guid);
   }
 
   async recordBreachAlertDismissal(loginGUID) {
@@ -391,7 +395,7 @@ export class LoginManagerRustStorage {
         Cr.NS_ERROR_NOT_IMPLEMENTED
       );
     }
-    return Promise.resolve(this.#store.list());
+    return Promise.resolve(this.#storageAdapter.list());
   }
 
   // The Rust API is sync atm
@@ -451,7 +455,7 @@ export class LoginManagerRustStorage {
       acceptRelatedRealms: false,
       relatedRealms: [],
     },
-    candidateLogins = this.#store.list()
+    candidateLogins = this.#storageAdapter.list()
   ) {
     function match(aLoginItem) {
       for (const field in matchData) {
@@ -558,7 +562,7 @@ export class LoginManagerRustStorage {
   }
 
   removeLogin(login, fromSync) {
-    const storedLogin = this.#store.findLoginToUpdate(login);
+    const storedLogin = this.#storageAdapter.findLoginToUpdate(login);
 
     if (!storedLogin) {
       throw new Error("No matching logins");
@@ -566,7 +570,7 @@ export class LoginManagerRustStorage {
 
     const idToDelete = storedLogin.guid;
 
-    this.#store.delete(idToDelete);
+    this.#storageAdapter.delete(idToDelete);
 
     Glean.pwmgr.numSavedPasswords.set(this.countLogins("", "", ""));
     // TODO: during write-only replica these events are disabled
@@ -607,7 +611,7 @@ export class LoginManagerRustStorage {
     const removedLogins = [];
     const remainingLogins = [];
 
-    const logins = this.#store.list();
+    const logins = this.#storageAdapter.list();
     const idsToDelete = [];
     for (const login of logins) {
       if (
@@ -631,7 +635,7 @@ export class LoginManagerRustStorage {
       }
     }
 
-    this.#store.deleteMany(idsToDelete);
+    this.#storageAdapter.deleteMany(idsToDelete);
 
     // TODO: this is the place to update these in memory stores
     // this._store.data.potentiallyVulnerablePasswords = [];
@@ -705,6 +709,17 @@ export class LoginManagerRustStorage {
 
   get isLoggedIn() {
     throw Components.Exception("isLoggedIn", Cr.NS_ERROR_NOT_IMPLEMENTED);
+  
+  }
+
+  // Retrieve checkpoint from Rust's meta storage, used for rolling migration.
+  getCheckpoint() {
+    return this.#storageAdapter.getCheckpoint();
+  }
+
+  // Store checkpoint in Rust's meta storage, used for rolling migration.
+  setCheckpoint(checkpoint) {
+    return this.#storageAdapter.setCheckpoint(checkpoint);
   }
 }
 
