@@ -42,7 +42,28 @@ const LoginInfo = Components.Constructor(
 // This could be an instance method implemented in
 // toolkit/components/passwordmgr/LoginInfo.sys.mjs
 // but I'd like to decouple from as many components as possible by now
-const loginInfoToLoginEntry = loginInfo =>
+const loginInfoToLoginEntry = loginInfo => {
+    const isPunycode = str => {
+      try {
+        return str && new URL(str).hostname.startsWith("xn--");
+      } catch (_) {
+        return false;
+      }
+    };
+  
+    if (isPunycode(loginInfo.origin)) {
+      Glean.pwmgr.invalidLoginFormat["nonAsciiOrigin"].add();
+    }
+    if (isPunycode(loginInfo.formActionOrigin)) {
+      Glean.pwmgr.invalidLoginFormat["nonAsciiFormAction"].add();
+    }
+  
+    if (loginInfo.origin === ".") {
+      Glean.pwmgr.invalidLoginFormat["dotOrigin"].add();
+    }
+    if (loginInfo.formActionOrigin === ".") {
+      Glean.pwmgr.invalidLoginFormat["dotFormActionOrigin"].add();
+    }
   new lazy.LoginEntry({
     origin: loginInfo.origin,
     httpRealm: loginInfo.httpRealm,
@@ -52,6 +73,7 @@ const loginInfoToLoginEntry = loginInfo =>
     username: loginInfo.username,
     password: loginInfo.password,
   });
+};
 
 // Convert a LoginInfo to a LoginEntryWithMeta, to be used for migrating
 // records between legacy and Rust storage.
@@ -200,6 +222,12 @@ export class LoginManagerRustStorage {
       })().catch(console.error);
     } catch (e) {
       this.log(`Initialization failed ${e.name}.`);
+
+      Glean.pwmgr.rustMigrationFailure.record({
+        operation: "init",
+        error_message: e.message ?? String(e),
+      });
+
       throw new Error("Initialization failed");
     }
   }
@@ -572,7 +600,6 @@ export class LoginManagerRustStorage {
 
     this.#storageAdapter.delete(idToDelete);
 
-    Glean.pwmgr.numSavedPasswords.set(this.countLogins("", "", ""));
     // TODO: during write-only replica these events are disabled
     // lazy.LoginHelper.notifyStorageChanged("removeLogin", storedLogin);
   }
