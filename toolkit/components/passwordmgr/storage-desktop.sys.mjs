@@ -29,13 +29,12 @@ class MirroringObserver {
   async observe(subject, _, eventName) {
     switch (eventName) {
       case "addLogin":
+        this.log(`rust-mirror: adding login ${subject.guid}...`);
         try {
           // TODO: handle incompatibilities:
           // - non-ascii origin
           // - single dot origin
           await this.#rustStorage.addLoginsAsync([subject]);
-
-          this.log(`rust-mirror: added login ${subject.guid}.`);
 
           recordPasswordCountDiff(this.#jsonStorage, this.#rustStorage);
         } catch (e) {
@@ -232,7 +231,7 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
       LoginManagerStorage.#logger.log(
         "Migration complete. Checkpoint updated."
       );
-      recordPasswordCountDiff(jsonStore, rustStore);
+      recordPasswordCountDiff(jsonStorage, rustStorage);
     } else {
       LoginManagerStorage.#logger.log("Checksums match. No migration needed.");
     }
@@ -241,9 +240,9 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
   }
 }
 
-function recordPasswordCountDiff(jsonStore, rustStore) {
-  const jsonCount = jsonStore.countLogins("", "", "");
-  const rustCount = rustStore.countLogins("", "", "");
+function recordPasswordCountDiff(jsonStorage, rustStorage) {
+  const jsonCount = jsonStorage.countLogins("", "", "");
+  const rustCount = rustStorage.countLogins("", "", "");
   const diff = jsonCount - rustCount;
   Glean.pwmgr.diffSavedPasswordsRust.set(diff);
 }
