@@ -52,17 +52,17 @@ const loginInfoToLoginEntry = loginInfo => {
     };
   
     if (isPunycode(loginInfo.origin)) {
-      Glean.pwmgr.invalidLoginFormat["nonAsciiOrigin"].add();
+      Glean.pwmgr.incompatibleLoginFormat["nonAsciiOrigin"].add();
     }
     if (isPunycode(loginInfo.formActionOrigin)) {
-      Glean.pwmgr.invalidLoginFormat["nonAsciiFormAction"].add();
+      Glean.pwmgr.incompatibleLoginFormat["nonAsciiFormAction"].add();
     }
   
     if (loginInfo.origin === ".") {
-      Glean.pwmgr.invalidLoginFormat["dotOrigin"].add();
+      Glean.pwmgr.incompatibleLoginFormat["dotOrigin"].add();
     }
     if (loginInfo.formActionOrigin === ".") {
-      Glean.pwmgr.invalidLoginFormat["dotFormActionOrigin"].add();
+      Glean.pwmgr.incompatibleLoginFormat["dotFormActionOrigin"].add();
     }
   new lazy.LoginEntry({
     origin: loginInfo.origin,

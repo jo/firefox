@@ -205,6 +205,6 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
 function recordPasswordCountDiff(jsonStore, rustStore) {
   const jsonCount = jsonStore.countLogins("", "", "");
   const rustCount = rustStore.countLogins("", "", "");
-  const diff = Math.abs(jsonCount - rustCount);
+  const diff = jsonCount - rustCount;
   Glean.pwmgr.diffSavedPasswordsRust.set(diff);
 }

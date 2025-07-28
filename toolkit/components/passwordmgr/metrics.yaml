@@ -877,7 +877,7 @@ pwmgr:
         The error message or exception string from the failure.
       type: string
 
-  rust_invalid_login_format:
+  rust_incompatible_login_format:
     type: labeled_counter
     unit: passwords
     lifetime: application
