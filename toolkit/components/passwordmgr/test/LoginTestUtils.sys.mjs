@@ -545,6 +545,14 @@ LoginTestUtils.primaryPassword = {
   disable() {
     this._set(false);
   },
+
+  prompt() {
+    const pk11db = Cc["@mozilla.org/security/pk11tokendb;1"].getService(
+      Ci.nsIPK11TokenDB
+    );
+    const token = pk11db.getInternalKeyToken();
+    token.login(false);
+  },
 };
 
 /**
