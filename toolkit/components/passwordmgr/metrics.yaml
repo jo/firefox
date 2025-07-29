@@ -876,6 +876,9 @@ pwmgr:
       description: >
         The error message or exception string from the failure.
       type: string
+    login_id:
+      description: >
+        The GUID of the login involved in the failure, if applicable.
 
   rust_incompatible_login_format:
     type: labeled_counter

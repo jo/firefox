@@ -43,6 +43,7 @@ class MirroringObserver {
           Glean.pwmgr.rustMigrationFailure.record({
             operation: "add",
             error_message: e.message ?? String(e),
+            login_id: subject.guid,
           });
         }
         this.log(`rust-mirror: added login ${subject.guid}.`);
@@ -65,6 +66,7 @@ class MirroringObserver {
           Glean.pwmgr.rustMigrationFailure.record({
             operation: "modify-login",
             error_message: e.message ?? String(e),
+            login_id: subject.guid,
           });
         }
         this.log(`rust-mirror: modified login ${loginToModify.guid}.`);
@@ -82,6 +84,7 @@ class MirroringObserver {
           Glean.pwmgr.rustMigrationFailure.record({
             operation: "remove-login",
             error_message: e.message ?? String(e),
+            login_id: subject.guid
           });
         }
         this.log(`rust-mirror: removed login ${subject.guid}.`);
