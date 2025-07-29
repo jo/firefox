@@ -13,9 +13,11 @@ ChromeUtils.defineESModuleGetters(lazy, {
 });
 
 class MirroringObserver {
+  #jsonStorage = null;
   #rustStorage = null;
 
-  constructor(rustStorage) {
+  constructor(jsonStorage, rustStorage) {
+    this.#jsonStorage = jsonStorage;
     this.#rustStorage = rustStorage;
   }
 
@@ -33,8 +35,16 @@ class MirroringObserver {
           // - non-ascii origin
           // - single dot origin
           await this.#rustStorage.addLoginsAsync([subject]);
+
+          recordPasswordCountDiff(this.#jsonStorage, this.#rustStorage);
         } catch (e) {
           console.error("mirror-error:", e);
+
+          Glean.pwmgr.rustMigrationFailure.record({
+            operation: "add",
+            error_message: e.message ?? String(e),
+            login_id: subject.guid,
+          });
         }
         this.log(`rust-mirror: added login ${subject.guid}.`);
         break;
@@ -48,8 +58,16 @@ class MirroringObserver {
           // - non-ascii origin
           // - single dot origin
           this.#rustStorage.modifyLogin(loginToModify, newLoginData);
+
+          recordPasswordCountDiff(this.#jsonStorage, this.#rustStorage);
         } catch (e) {
           console.error("mirror-error:", e);
+
+          Glean.pwmgr.rustMigrationFailure.record({
+            operation: "modify-login",
+            error_message: e.message ?? String(e),
+            login_id: subject.guid,
+          });
         }
         this.log(`rust-mirror: modified login ${loginToModify.guid}.`);
         break;
@@ -58,8 +76,16 @@ class MirroringObserver {
         this.log(`rust-mirror: removing login ${subject.guid}...`);
         try {
           this.#rustStorage.removeLogin(subject);
+
+          recordPasswordCountDiff(this.#jsonStorage, this.#rustStorage);
         } catch (e) {
           console.error("mirror-error:", e);
+
+          Glean.pwmgr.rustMigrationFailure.record({
+            operation: "remove-login",
+            error_message: e.message ?? String(e),
+            login_id: subject.guid
+          });
         }
         this.log(`rust-mirror: removed login ${subject.guid}.`);
         break;
@@ -68,8 +94,15 @@ class MirroringObserver {
         this.log("rust-mirror: removing all logins...");
         try {
           this.#rustStorage.removeAllLogins();
+
+          recordPasswordCountDiff(this.#jsonStorage, this.#rustStorage);
         } catch (e) {
           console.error("mirror-error:", e);
+
+          Glean.pwmgr.rustMigrationFailure.record({
+            operation: "remove-all-logins",
+            error_message: e.message ?? String(e),
+          });
         }
         this.log("rust-mirror: removed all logins.");
         break;
@@ -136,6 +169,7 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
         LoginManagerStorage.#logger.log(
           "Oh jeay, I have initialized both stores"
         );
+      
         try {
           await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(
             LoginManagerStorage.#jsonStorage,
@@ -143,6 +177,11 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
           );
         } catch (e) {
           LoginManagerStorage.#logger.error("Login migration failed", e);
+          
+          Glean.pwmgr.rustMigrationFailure.record({
+          operation: "migration",
+          error_message: e.message ?? String(e),
+        });
         }
 
         if (this.#mirroringObserver) {
@@ -152,6 +191,7 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
           );
         }
         this.#mirroringObserver = new MirroringObserver(
+          LoginManagerStorage.#jsonStorage,
           LoginManagerStorage.#rustStorage
         );
         Services.obs.addObserver(
@@ -189,10 +229,18 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
       LoginManagerStorage.#logger.log(
         "Migration complete. Checkpoint updated."
       );
+      recordPasswordCountDiff(jsonStore, rustStore);
     } else {
       LoginManagerStorage.#logger.log("Checksums match. No migration needed.");
     }
 
     LoginManagerStorage.#logger.log("Login migration finished.");
   }
+}
+
+function recordPasswordCountDiff(jsonStore, rustStore) {
+  const jsonCount = jsonStore.countLogins("", "", "");
+  const rustCount = rustStore.countLogins("", "", "");
+  const diff = jsonCount - rustCount;
+  Glean.pwmgr.diffSavedPasswordsRust.set(diff);
 }
