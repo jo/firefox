@@ -46,28 +46,29 @@ const LoginInfo = Components.Constructor(
 // toolkit/components/passwordmgr/LoginInfo.sys.mjs
 // but I'd like to decouple from as many components as possible by now
 const loginInfoToLoginEntry = loginInfo => {
-    const isPunycode = str => {
-      try {
-        return str && new URL(str).hostname.startsWith("xn--");
-      } catch (_) {
-        return false;
-      }
-    };
+  const isPunycode = str => {
+    try {
+      return str && new URL(str).hostname.startsWith("xn--");
+    } catch (_) {
+      return false;
+    }
+  };
   
-    if (isPunycode(loginInfo.origin)) {
-      Glean.pwmgr.incompatibleLoginFormat["nonAsciiOrigin"].add();
-    }
-    if (isPunycode(loginInfo.formActionOrigin)) {
-      Glean.pwmgr.incompatibleLoginFormat["nonAsciiFormAction"].add();
-    }
+  if (isPunycode(loginInfo.origin)) {
+    Glean.pwmgr.incompatibleLoginFormat["nonAsciiOrigin"].add();
+  }
+  if (isPunycode(loginInfo.formActionOrigin)) {
+    Glean.pwmgr.incompatibleLoginFormat["nonAsciiFormAction"].add();
+  }
   
-    if (loginInfo.origin === ".") {
-      Glean.pwmgr.incompatibleLoginFormat["dotOrigin"].add();
-    }
-    if (loginInfo.formActionOrigin === ".") {
-      Glean.pwmgr.incompatibleLoginFormat["dotFormActionOrigin"].add();
-    }
-  new lazy.LoginEntry({
+  if (loginInfo.origin === ".") {
+    Glean.pwmgr.incompatibleLoginFormat["dotOrigin"].add();
+  }
+  if (loginInfo.formActionOrigin === ".") {
+    Glean.pwmgr.incompatibleLoginFormat["dotFormActionOrigin"].add();
+  }
+
+  return new LoginEntry({
     origin: loginInfo.origin,
     httpRealm: loginInfo.httpRealm,
     formActionOrigin: loginInfo.formActionOrigin,
@@ -330,7 +331,9 @@ export class LoginManagerRustStorage {
       loginsToAdd.push(loginInfo);
     }
 
+    console.log("TODO: Adding to Rust store:", loginsToAdd);
     const result = this.#storageAdapter.addManyWithMeta(loginsToAdd);
+    console.log("TODO: Added to Rust store:", result);
 
     // TODO: during write-only replica these events are disabled
     // Send a notification that a login was added.
@@ -501,6 +504,7 @@ export class LoginManagerRustStorage {
     },
     candidateLogins = this.#storageAdapter.list()
   ) {
+    console.log("candidateLogins", candidateLogins)
     function match(aLoginItem) {
       for (const field in matchData) {
         const wantedValue = matchData[field];
@@ -678,6 +682,7 @@ export class LoginManagerRustStorage {
       }
     }
 
+    this.log("Removing logins:", idsToDelete);
     this.#storageAdapter.deleteMany(idsToDelete);
 
     // TODO: this is the place to update these in memory stores

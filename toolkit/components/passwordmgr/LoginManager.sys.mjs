@@ -499,4 +499,10 @@ LoginManager.prototype = {
       origin
     );
   },
+
+  // Compute a sha256 sum over the json file; If the file does not exist, return null.
+  // Used for rolling migration.
+  computeShasum() {
+    return this._storage.computeShasum();
+  },
 }; // end of LoginManager implementation
