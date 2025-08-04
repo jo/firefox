@@ -620,7 +620,7 @@ export class LoginManagerStorage_json {
     }
 
     this.log(
-      `Returning ${foundLogins.length} logins for specified origin with options ${aOptions}`
+      `Returning ${foundLogins.length} logins for specified origin with options ${JSON.stringify(aOptions)}`
     );
     return [foundLogins, foundIds];
   }

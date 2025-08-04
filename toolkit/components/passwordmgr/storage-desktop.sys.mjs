@@ -123,7 +123,6 @@ ChromeUtils.defineLazyGetter(MirroringObserver.prototype, "log", () => {
 export class LoginManagerStorage extends LoginManagerStorage_json {
   static #jsonStorage = null;
   static #rustStorage = null;
-  static #initialized = false;
   static #mirroringObserver = null;
   static #logger = lazy.LoginHelper.createLogger("Login Manager Storage");
 
@@ -133,45 +132,42 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
       !lazy.LoginHelper.isPrimaryPasswordSet();
 
     if (loginsRustMirrorEnabled) {
-      LoginManagerStorage.#initializeWithRustMirror(callback);
+      if (!LoginManagerStorage.#jsonStorage || !LoginManagerStorage.#rustStorage) {
+        LoginManagerStorage.#initializeWithRustMirror(callback);
+      } else {
+        callback?.();
+      }
     } else {
-      LoginManagerStorage.#initialize(callback);
+      if (!LoginManagerStorage.#jsonStorage) {
+        LoginManagerStorage.#initialize(callback);
+      } else {
+        callback?.();
+      }
     }
     return LoginManagerStorage.#jsonStorage;
   }
 
   static #initialize(callback) {
-    if (LoginManagerStorage.#initialized) {
-      return callback?.();
-    }
-
     LoginManagerStorage.#jsonStorage = new LoginManagerStorage_json();
+
+    LoginManagerStorage.#logger.log("initializing LoginManagerStorage without rust mirror");
 
     return LoginManagerStorage.#jsonStorage
       .initialize()
-      .then(() => {
-        LoginManagerStorage.#initialized = true;
-      })
       .then(() => callback?.());
   }
 
   static #initializeWithRustMirror(callback) {
-    if (LoginManagerStorage.#initialized) {
-      return callback?.();
-    }
-
     LoginManagerStorage.#jsonStorage = new LoginManagerStorage_json();
     LoginManagerStorage.#rustStorage = new LoginManagerRustStorage();
+
+    LoginManagerStorage.#logger.log("initializing LoginManagerStorage with rust mirror");
 
     return Promise.all([
       LoginManagerStorage.#jsonStorage.initialize(),
       LoginManagerStorage.#rustStorage.initialize(),
     ])
       .then(async () => {
-        LoginManagerStorage.#logger.log(
-          "Oh jeay, I have initialized both stores"
-        );
-
         try {
           await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(
             LoginManagerStorage.#jsonStorage,
@@ -200,8 +196,6 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
           this.#mirroringObserver,
           "passwordmgr-storage-changed"
         );
-
-        LoginManagerStorage.#initialized = true;
       })
       .then(() => callback?.());
   }
