@@ -837,13 +837,13 @@ pwmgr:
     expires: never
     no_lint:
       - UNIT_IN_NAME
-  
+
   diff_saved_passwords_rust:
     type: quantity
     unit: passwords
     lifetime: application
     description: |
-      Records any difference in the number of saved logins between JSON 
+      Records any difference in the number of saved logins between JSON
       storage and Rust storage.
     bugs:
       - TODO open Bug
@@ -854,11 +854,11 @@ pwmgr:
     expires: never
     no_lint:
       - UNIT_IN_NAME
-  
+
   rust_migration_failure:
     type: event
     description: >
-      Records failures from operations in the Rust password store, including 
+      Records failures from operations in the Rust password store, including
       the operation type and error message.
     bugs:
       - TODO open Bug

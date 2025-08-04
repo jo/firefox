@@ -19,20 +19,15 @@ ChromeUtils.defineESModuleGetters(lazy, {
   AsyncShutdown: "resource://gre/modules/AsyncShutdown.sys.mjs",
 });
 
-const { initialize: initRustComponents } = ChromeUtils.importESModule(
-  "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustInitRustComponents.sys.mjs"
-);
+import { initialize as initRustComponents } from "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustInitRustComponents.sys.mjs";
 
-const {
+import {
   LoginEntry,
   LoginMeta,
   LoginEntryWithMeta,
   PrimaryPasswordAuthenticator,
   createLoginStoreWithNssKeymanager,
-} = ChromeUtils.importESModule(
-  "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustLogins.sys.mjs",
-);
-
+} from "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustLogins.sys.mjs";
 
 const LoginInfo = Components.Constructor(
   "@mozilla.org/login-manager/loginInfo;1",
@@ -53,19 +48,19 @@ const loginInfoToLoginEntry = loginInfo => {
       return false;
     }
   };
-  
+
   if (isPunycode(loginInfo.origin)) {
-    Glean.pwmgr.incompatibleLoginFormat["nonAsciiOrigin"].add();
+    Glean.pwmgr.incompatibleLoginFormat.nonAsciiOrigin.add();
   }
   if (isPunycode(loginInfo.formActionOrigin)) {
-    Glean.pwmgr.incompatibleLoginFormat["nonAsciiFormAction"].add();
+    Glean.pwmgr.incompatibleLoginFormat.nonAsciiFormAction.add();
   }
-  
+
   if (loginInfo.origin === ".") {
-    Glean.pwmgr.incompatibleLoginFormat["dotOrigin"].add();
+    Glean.pwmgr.incompatibleLoginFormat.dotOrigin.add();
   }
   if (loginInfo.formActionOrigin === ".") {
-    Glean.pwmgr.incompatibleLoginFormat["dotFormActionOrigin"].add();
+    Glean.pwmgr.incompatibleLoginFormat.dotFormActionOrigin.add();
   }
 
   return new LoginEntry({
@@ -221,7 +216,7 @@ export class LoginManagerRustStorage {
 
       return (async () => {
         this.log(`Initializing Rust login storage at ${path}`);
-  
+
         await initRustComponents(profilePath);
 
         const authenticator = new LoginStorageAuthenticator();
@@ -274,7 +269,7 @@ export class LoginManagerRustStorage {
     throw Components.Exception("getSyncID", Cr.NS_ERROR_NOT_IMPLEMENTED);
   }
 
-  async setSyncID(syncID) {
+  async setSyncID(_syncID) {
     throw Components.Exception("setSyncID", Cr.NS_ERROR_NOT_IMPLEMENTED);
   }
 
@@ -282,16 +277,16 @@ export class LoginManagerRustStorage {
     throw Components.Exception("getLastSync", Cr.NS_ERROR_NOT_IMPLEMENTED);
   }
 
-  async setLastSync(timestamp) {
+  async setLastSync(_timestamp) {
     throw Components.Exception("setLastSync", Cr.NS_ERROR_NOT_IMPLEMENTED);
   }
 
-  async resetSyncCounter(guid, value) {
+  async resetSyncCounter(_guid, _value) {
     throw Components.Exception("resetSyncCounter", Cr.NS_ERROR_NOT_IMPLEMENTED);
   }
 
   // Returns false if the login has marked as deleted or doesn't exist.
-  loginIsDeleted(guid) {
+  loginIsDeleted(_guid) {
     throw Components.Exception("loginIsDeleted", Cr.NS_ERROR_NOT_IMPLEMENTED);
   }
 
@@ -341,7 +336,7 @@ export class LoginManagerRustStorage {
     return Promise.resolve(result);
   }
 
-  modifyLogin(oldLogin, newLoginData, fromSync) {
+  modifyLogin(oldLogin, newLoginData, _fromSync) {
     const oldStoredLogin = this.#storageAdapter.findLoginToUpdate(oldLogin);
 
     if (!oldStoredLogin) {
@@ -414,7 +409,7 @@ export class LoginManagerRustStorage {
     this.#storageAdapter.touch(oldStoredLogin.guid);
   }
 
-  async recordBreachAlertDismissal(loginGUID) {
+  async recordBreachAlertDismissal(_loginGUID) {
     throw Components.Exception(
       "recordBreachAlertDismissal",
       Cr.NS_ERROR_NOT_IMPLEMENTED
@@ -606,7 +601,7 @@ export class LoginManagerRustStorage {
     return [foundLogins, foundIds];
   }
 
-  removeLogin(login, fromSync) {
+  removeLogin(login, _fromSync) {
     const storedLogin = this.#storageAdapter.findLoginToUpdate(login);
 
     if (!storedLogin) {
@@ -726,14 +721,14 @@ export class LoginManagerRustStorage {
     return logins.length;
   }
 
-  addPotentiallyVulnerablePassword(login) {
+  addPotentiallyVulnerablePassword(_login) {
     throw Components.Exception(
       "addPotentiallyVulnerablePassword",
       Cr.NS_ERROR_NOT_IMPLEMENTED
     );
   }
 
-  isPotentiallyVulnerablePassword(login) {
+  isPotentiallyVulnerablePassword(_login) {
     throw Components.Exception(
       "isPotentiallyVulnerablePassword",
       Cr.NS_ERROR_NOT_IMPLEMENTED

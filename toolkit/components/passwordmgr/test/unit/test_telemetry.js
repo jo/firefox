@@ -7,6 +7,10 @@
 
 "use strict";
 
+const { TestUtils } = ChromeUtils.importESModule(
+  "resource://testing-common/TestUtils.sys.mjs"
+);
+
 // Globals
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -170,8 +174,9 @@ add_task(async function test_rust_mirror_addLogin_failure() {
   await Services.fog.testFlushAllChildren();
 
   const events = Glean.pwmgr.rustMigrationFailure.testGetValue();
-  Assert.ok(
-    events.length >= 1,
+  Assert.greaterOrEqual(
+    events.length,
+    1,
     "At least one rustMigrationFailure event was recorded"
   );
 

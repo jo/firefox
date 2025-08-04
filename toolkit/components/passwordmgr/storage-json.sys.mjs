@@ -1109,7 +1109,7 @@ export class LoginManagerStorage_json {
       // I'd expect this to be a NS_ERROR_FILE_NOT_FOUND, but computeHexDigest
       // returns NS_ERROR_DOM_NOT_FOUND_ERR instead
       if (e.result != Cr.NS_ERROR_DOM_NOT_FOUND_ERR) {
-        throw(e);
+        throw e;
       }
     }
     return sha;

@@ -84,7 +84,7 @@ class MirroringObserver {
           Glean.pwmgr.rustMigrationFailure.record({
             operation: "remove-login",
             error_message: e.message ?? String(e),
-            login_id: subject.guid
+            login_id: subject.guid,
           });
         }
         this.log(`rust-mirror: removed login ${subject.guid}.`);
@@ -108,7 +108,9 @@ class MirroringObserver {
         break;
 
       default:
-        console.error(`mirror-error default: received unhandled event "${eventName}"`);
+        console.error(
+          `mirror-error default: received unhandled event "${eventName}"`
+        );
     }
   }
 }
@@ -169,7 +171,7 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
         LoginManagerStorage.#logger.log(
           "Oh jeay, I have initialized both stores"
         );
-      
+
         try {
           await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(
             LoginManagerStorage.#jsonStorage,
@@ -177,11 +179,11 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
           );
         } catch (e) {
           LoginManagerStorage.#logger.error("Login migration failed", e);
-          
+
           Glean.pwmgr.rustMigrationFailure.record({
-          operation: "migration",
-          error_message: e.message ?? String(e),
-        });
+            operation: "migration",
+            error_message: e.message ?? String(e),
+          });
         }
 
         if (this.#mirroringObserver) {
@@ -220,8 +222,8 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
 
       const logins = await jsonStorage.getAllLogins();
 
-      const result = await rustStorage.addLoginsAsync(logins);
-      // TODO: expect result
+      await rustStorage.addLoginsAsync(logins);
+      // TODO: expect result, report errors
 
       LoginManagerStorage.#logger.log(
         `Successfully migrated ${logins.length} logins.`

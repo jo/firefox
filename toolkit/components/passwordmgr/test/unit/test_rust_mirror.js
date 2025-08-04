@@ -11,9 +11,6 @@ const { LoginManagerRustStorage } = ChromeUtils.importESModule(
 const { LoginManagerStorage } = ChromeUtils.importESModule(
   "resource://passwordmgr/passwordstorage.sys.mjs"
 );
-const { LoginStore } = ChromeUtils.importESModule(
-  "resource://gre/modules/LoginStore.sys.mjs"
-);
 const sinon = ChromeUtils.importESModule(
   "resource://testing-common/Sinon.sys.mjs"
 ).sinon;
@@ -37,7 +34,9 @@ add_task(async function test_mirror_addLogin() {
 
   const [storedLoginInfo] = await Services.logins.getAllLogins();
 
-  const [rustStoredLoginInfo] = await rustStorage.searchLoginsAsync({ guid: storedLoginInfo.guid });
+  const [rustStoredLoginInfo] = await rustStorage.searchLoginsAsync({
+    guid: storedLoginInfo.guid,
+  });
   LoginTestUtils.assertLoginListsEqual(
     [storedLoginInfo],
     [rustStoredLoginInfo]
@@ -73,7 +72,9 @@ add_task(async function test_mirror_modifyLogin() {
 
   const [storedModifiedLoginInfo] = await Services.logins.getAllLogins();
 
-  const [rustStoredModifiedLoginInfo] = await rustStorage.searchLoginsAsync({ guid: storedLoginInfo.guid });
+  const [rustStoredModifiedLoginInfo] = await rustStorage.searchLoginsAsync({
+    guid: storedLoginInfo.guid,
+  });
   LoginTestUtils.assertLoginListsEqual(
     [storedModifiedLoginInfo],
     [rustStoredModifiedLoginInfo]
@@ -120,7 +121,10 @@ add_task(async function test_rolling_migration_initial_copy() {
   const rustStorage = new LoginManagerRustStorage();
   await rustStorage.initialize();
 
-  await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage);
+  await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(
+    Services.logins,
+    rustStorage
+  );
 
   const jsonLogins = await Services.logins.getAllLogins();
   const rustLogins = await rustStorage.getAllLogins();
@@ -145,19 +149,25 @@ add_task(async function test_migration_is_idempotent() {
   await rustStore.initialize();
 
   // Second migration (first one runs on init)
-  await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(Services.logins, rustStore);
+  await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(
+    Services.logins,
+    rustStore
+  );
   let loginsAfterFirst = await rustStore.getAllLogins();
   Assert.equal(loginsAfterFirst.length, 1, "Login copied on first migration");
 
   // Third migration (simulate re-run)
-  await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(Services.logins, rustStore);
+  await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(
+    Services.logins,
+    rustStore
+  );
   let loginsAfterSecond = await rustStore.getAllLogins();
   Assert.equal(
     loginsAfterSecond.length,
     1,
     "No duplicate after second migration"
   );
-  
+
   await LoginTestUtils.clearData();
 });
 
@@ -176,7 +186,10 @@ add_task(async function test_rolling_migration_drops_rust_on_checksum_change() {
   await rustStorage.initialize();
 
   // Step 2: Run first migration
-  await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage);
+  await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(
+    Services.logins,
+    rustStorage
+  );
 
   let rustLogins = await rustStorage.getAllLogins();
   LoginTestUtils.assertLoginListsEqual(
@@ -194,7 +207,10 @@ add_task(async function test_rolling_migration_drops_rust_on_checksum_change() {
   await Services.logins.addLoginAsync(newLogin);
 
   // Step 4: Run second migration (checksum mismatch expected)
-  await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage);
+  await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(
+    Services.logins,
+    rustStorage
+  );
 
   let rustLoginsAfter = await rustStorage.getAllLogins();
   LoginTestUtils.assertLoginListsEqual(
@@ -221,12 +237,17 @@ add_task(async function test_mirror_login_fields_are_complete() {
   await rustStorage.initialize();
   await LoginTestUtils.reloadData();
 
-  const [stored] = await Services.logins.getAllLogins();
-  const [mirrored] = await rustStorage.getAllLogins();
+  const stored = await Services.logins.getAllLogins();
+  const mirrored = await rustStorage.getAllLogins();
 
   for (let field of ["origin", "username", "password"]) {
     Assert.ok(mirrored[field], `${field} must not be empty`);
   }
+  LoginTestUtils.assertLoginListsEqual(
+    stored,
+    mirrored,
+    "Rust store is in sync"
+  );
 
   await LoginTestUtils.clearData();
 });
@@ -246,13 +267,19 @@ add_task(async function test_avoid_redundant_updates() {
   await rustStorage.initialize();
 
   // First migration - triggers real copy
-  await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage);
+  await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(
+    Services.logins,
+    rustStorage
+  );
 
   // Stub addLoginsAsync to observe the second call
   const stub = sinon.stub(rustStorage, "addLoginsAsync");
 
   // Second migration - should not call addLoginAsync again
-  await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage);
+  await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(
+    Services.logins,
+    rustStorage
+  );
 
   Assert.ok(stub.notCalled, "Should skip unchanged login migration");
 
@@ -272,24 +299,24 @@ add_task(async function test_avoid_redundant_updates() {
 // add_task(async function test_migration_aborts_on_partial_failure() {
 //   const rustStorage = new LoginManagerRustStorage();
 //   await rustStorage.initialize();
-// 
+//
 //   const loginA = TestData.formLogin({ username: "userA" });
 //   const loginB = TestData.formLogin({ username: "userB" });
-// 
+//
 //   await Services.logins.addLogins([loginA, loginB]);
-// 
+//
 //   const stub = sinon
 //     .stub(rustStorage, "addLoginsAsync")
 //     .onFirstCall()
 //     .rejects(new Error("Simulated migration failure"));
-// 
+//
 //   try {
 //     await Assert.rejects(
 //       () => LoginManagerStorage.maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage),
 //       /Simulated migration failure/,
 //       "Migration should fail when one login fails to copy"
 //     );
-// 
+//
 //     const migratedLogins = await rustStorage.getAllLogins();
 //     Assert.equal(
 //       migratedLogins.length,
@@ -301,7 +328,7 @@ add_task(async function test_avoid_redundant_updates() {
 //     await LoginTestUtils.clearData();
 //   }
 // });
-// 
+//
 // /**
 //  * Ensures that migrating a large number of logins (1000) from the JSON store to
 //  * the Rust store completes within a reasonable time frame (under 1 second).
@@ -311,13 +338,13 @@ add_task(async function test_avoid_redundant_updates() {
 //     TestData.formLogin({ username: `user${i}` })
 //   );
 //   await Services.logins.addLogins(logins);
-// 
+//
 //   const rustStorage = new LoginManagerRustStorage();
 //   await rustStorage.initialize();
-// 
+//
 //   const start = Date.now();
 //   await LoginManagerStorage.maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage);
 //   const duration = Date.now() - start;
-// 
+//
 //   Assert.less(duration, 1000, "Migration should complete under 1s");
 // });
