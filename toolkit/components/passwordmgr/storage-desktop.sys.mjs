@@ -132,25 +132,23 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
       !lazy.LoginHelper.isPrimaryPasswordSet();
 
     if (loginsRustMirrorEnabled) {
-      if (!LoginManagerStorage.#jsonStorage || !LoginManagerStorage.#rustStorage) {
-        LoginManagerStorage.#initializeWithRustMirror(callback);
-      } else {
-        callback?.();
-      }
+      LoginManagerStorage.#initializeWithRustMirror(callback);
     } else {
-      if (!LoginManagerStorage.#jsonStorage) {
-        LoginManagerStorage.#initialize(callback);
-      } else {
-        callback?.();
-      }
+      LoginManagerStorage.#initialize(callback);
     }
     return LoginManagerStorage.#jsonStorage;
   }
 
   static #initialize(callback) {
+    if (LoginManagerStorage.#jsonStorage) {
+      return callback?.();
+    }
+
     LoginManagerStorage.#jsonStorage = new LoginManagerStorage_json();
 
-    LoginManagerStorage.#logger.log("initializing LoginManagerStorage without rust mirror");
+    LoginManagerStorage.#logger.log(
+      "initializing LoginManagerStorage without rust mirror"
+    );
 
     return LoginManagerStorage.#jsonStorage
       .initialize()
@@ -158,10 +156,16 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
   }
 
   static #initializeWithRustMirror(callback) {
+    if (LoginManagerStorage.#jsonStorage && LoginManagerStorage.#rustStorage) {
+      return callback?.();
+    }
+
     LoginManagerStorage.#jsonStorage = new LoginManagerStorage_json();
     LoginManagerStorage.#rustStorage = new LoginManagerRustStorage();
 
-    LoginManagerStorage.#logger.log("initializing LoginManagerStorage with rust mirror");
+    LoginManagerStorage.#logger.log(
+      "initializing LoginManagerStorage with rust mirror"
+    );
 
     return Promise.all([
       LoginManagerStorage.#jsonStorage.initialize(),
