@@ -12,6 +12,45 @@ ChromeUtils.defineESModuleGetters(lazy, {
   LoginHelper: "resource://gre/modules/LoginHelper.sys.mjs",
 });
 
+/* Check if an url has punicode encoded hostname */
+function isPunycode(origin) {
+  try {
+    return origin && new URL(origin).hostname.startsWith("xn--");
+  } catch (_) {
+    return false;
+  }
+}
+
+function recordPasswordCountDiff(jsonStorage, rustStorage) {
+  const jsonCount = jsonStorage.countLogins("", "", "");
+  const rustCount = rustStorage.countLogins("", "", "");
+  const diff = jsonCount - rustCount;
+  Glean.pwmgr.diffSavedPasswordsRust.set(diff);
+}
+
+function recordIncompatibleFormats(loginInfo) {
+  if (isPunycode(loginInfo.origin)) {
+    Glean.pwmgr.incompatibleLoginFormat.nonAsciiOrigin.add();
+  }
+  if (isPunycode(loginInfo.formActionOrigin)) {
+    Glean.pwmgr.incompatibleLoginFormat.nonAsciiFormAction.add();
+  }
+
+  if (loginInfo.origin === ".") {
+    Glean.pwmgr.incompatibleLoginFormat.dotOrigin.add();
+  }
+  if (loginInfo.formActionOrigin === ".") {
+    Glean.pwmgr.incompatibleLoginFormat.dotFormActionOrigin.add();
+  }
+}
+
+function recordMigrationFailure(operation, error) {
+  Glean.pwmgr.rustMigrationFailure.record({
+    operation,
+    error_message: error.message ?? String(error),
+  });
+}
+
 class MirroringObserver {
   #jsonStorage = null;
   #rustStorage = null;
@@ -31,20 +70,14 @@ class MirroringObserver {
       case "addLogin":
         this.log(`rust-mirror: adding login ${subject.guid}...`);
         try {
-          // TODO: handle incompatibilities:
-          // - non-ascii origin
-          // - single dot origin
+          recordIncompatibleFormats(subject);
+
           await this.#rustStorage.addLoginsAsync([subject]);
 
           recordPasswordCountDiff(this.#jsonStorage, this.#rustStorage);
         } catch (e) {
           console.error("mirror-error:", e);
-
-          Glean.pwmgr.rustMigrationFailure.record({
-            operation: "add",
-            error_message: e.message ?? String(e),
-            login_id: subject.guid,
-          });
+          recordMigrationFailure("add", e);
         }
         this.log(`rust-mirror: added login ${subject.guid}.`);
         break;
@@ -54,20 +87,14 @@ class MirroringObserver {
         const newLoginData = subject.queryElementAt(1, Ci.nsILoginInfo);
         this.log(`rust-mirror: modifying login ${loginToModify.guid}...`);
         try {
-          // TODO: handle incompatibilities:
-          // - non-ascii origin
-          // - single dot origin
+          recordIncompatibleFormats(subject);
+
           this.#rustStorage.modifyLogin(loginToModify, newLoginData);
 
           recordPasswordCountDiff(this.#jsonStorage, this.#rustStorage);
         } catch (e) {
           console.error("mirror-error modifyLogin:", e);
-
-          Glean.pwmgr.rustMigrationFailure.record({
-            operation: "modify-login",
-            error_message: e.message ?? String(e),
-            login_id: subject.guid,
-          });
+          recordMigrationFailure("modify-login", e);
         }
         this.log(`rust-mirror: modified login ${loginToModify.guid}.`);
         break;
@@ -80,12 +107,7 @@ class MirroringObserver {
           recordPasswordCountDiff(this.#jsonStorage, this.#rustStorage);
         } catch (e) {
           console.error("mirror-error removeLogin:", e);
-
-          Glean.pwmgr.rustMigrationFailure.record({
-            operation: "remove-login",
-            error_message: e.message ?? String(e),
-            login_id: subject.guid,
-          });
+          recordMigrationFailure("remove-login", e);
         }
         this.log(`rust-mirror: removed login ${subject.guid}.`);
         break;
@@ -98,11 +120,7 @@ class MirroringObserver {
           recordPasswordCountDiff(this.#jsonStorage, this.#rustStorage);
         } catch (e) {
           console.error("mirror-error removeAllLogins:", e);
-
-          Glean.pwmgr.rustMigrationFailure.record({
-            operation: "remove-all-logins",
-            error_message: e.message ?? String(e),
-          });
+          recordMigrationFailure("remove-all-logins", e);
         }
         this.log("rust-mirror: removed all logins.");
         break;
@@ -179,11 +197,7 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
           );
         } catch (e) {
           LoginManagerStorage.#logger.error("Login migration failed", e);
-
-          Glean.pwmgr.rustMigrationFailure.record({
-            operation: "migration",
-            error_message: e.message ?? String(e),
-          });
+          recordMigrationFailure("rolling-migration", e);
         }
 
         if (this.#mirroringObserver) {
@@ -238,11 +252,4 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
 
     LoginManagerStorage.#logger.log("Login migration finished.");
   }
-}
-
-function recordPasswordCountDiff(jsonStorage, rustStorage) {
-  const jsonCount = jsonStorage.countLogins("", "", "");
-  const rustCount = rustStorage.countLogins("", "", "");
-  const diff = jsonCount - rustCount;
-  Glean.pwmgr.diffSavedPasswordsRust.set(diff);
 }
