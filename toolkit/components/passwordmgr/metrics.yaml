@@ -870,15 +870,11 @@ pwmgr:
     extra_keys:
       operation:
         description: >
-          The type of operation that failed (e.g. "add", "modify", "remove", "migration", etc.).
+          The type of operation that failed (e.g. "add", "modify", "remove", "rolling-migration", etc.).
         type: string
       error_message:
         description: >
           The error message or exception string from the failure.
-        type: string
-      login_id:
-        description: >
-          The GUID of the login involved in the failure, if applicable.
         type: string
 
   rust_incompatible_login_format:
