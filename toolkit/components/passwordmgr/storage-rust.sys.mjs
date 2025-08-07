@@ -155,6 +155,18 @@ class RustLoginsStoreAdapter {
     return this.#store.wipeLocal();
   }
 
+  count() {
+    return this.#store.count();
+  }
+
+  countByOrigin(origin) {
+    return this.#store.countByOrigin(origin);
+  }
+
+  countByFormActionOrigin(formActionOrigin) {
+    return this.#store.countByFormActionOrigin(formActionOrigin);
+  }
+
   touch(id) {
     this.#store.touch(id);
   }
@@ -674,6 +686,18 @@ export class LoginManagerRustStorage {
   }
 
   countLogins(origin, formActionOrigin, httpRealm) {
+    if (!origin && !formActionOrigin && !httpRealm) {
+      return this.#storageAdapter.count();
+    }
+
+    if (origin && !formActionOrigin && !httpRealm) {
+      return this.#storageAdapter.countByOrigin(origin);
+    }
+
+    if (!origin && formActionOrigin && !httpRealm) {
+      return this.#storageAdapter.countByFormActionOrigin(formActionOrigin);
+    }
+
     const loginData = {
       origin,
       formActionOrigin,
