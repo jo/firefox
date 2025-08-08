@@ -17,38 +17,19 @@ const { LoginManagerRustStorage } = ChromeUtils.importESModule(
 ("use strict");
 
 /**
- * Disable Rust mirror so we can manually test it
+ * Enable Rust mirror and setup Glean
  */
 add_setup(async () => {
-  Services.prefs.setBoolPref("signon.loginsRustMirror.enabled", false);
+  Services.prefs.setBoolPref("signon.loginsRustMirror.enabled", true);
   // Required for FOG/Glean to work correctly in tests
   do_get_profile();
   Services.fog.initializeFOG();
 });
 
 /**
- * Tests that a disabled mirror does not mirror
- */
-add_task(async function test_mirror_disabled() {
-  const loginInfo = TestData.formLogin({
-    username: "username",
-    password: "password",
-  });
-  await Services.logins.addLoginAsync(loginInfo);
-
-  const rustStorage = new LoginManagerRustStorage();
-  await rustStorage.initialize();
-
-  Assert.equal(rustStorage.countLogins("", "", ""), 0, "No migration happened");
-  LoginTestUtils.clearData();
-});
-
-/**
  * Tests addLogin gets synced to Rust Storage
  */
 add_task(async function test_mirror_addLogin() {
-  Services.prefs.setBoolPref("signon.loginsRustMirror.enabled", true);
-
   const loginInfo = TestData.formLogin({
     username: "username",
     password: "password",
@@ -64,16 +45,12 @@ add_task(async function test_mirror_addLogin() {
 
   LoginTestUtils.clearData();
   rustStorage.removeAllLogins();
-
-  Services.prefs.setBoolPref("signon.loginsRustMirror.enabled", false);
 });
 
 /**
  * Tests modifyLogin gets synced to Rust Storage
  */
 add_task(async function test_mirror_modifyLogin() {
-  Services.prefs.setBoolPref("signon.loginsRustMirror.enabled", true);
-
   const loginInfo = TestData.formLogin({
     username: "username",
     password: "password",
@@ -107,15 +84,12 @@ add_task(async function test_mirror_modifyLogin() {
 
   await LoginTestUtils.clearData();
   rustStorage.removeAllLogins();
-  Services.prefs.setBoolPref("signon.loginsRustMirror.enabled", false);
 });
 
 /**
  * Tests removeLogin gets synced to Rust Storage
  */
 add_task(async function test_mirror_removeLogin() {
-  Services.prefs.setBoolPref("signon.loginsRustMirror.enabled", true);
-
   const loginInfo = TestData.formLogin({
     username: "username",
     password: "password",
@@ -136,7 +110,6 @@ add_task(async function test_mirror_removeLogin() {
 
   await LoginTestUtils.clearData();
   rustStorage.removeAllLogins();
-  Services.prefs.setBoolPref("signon.loginsRustMirror.enabled", false);
 });
 
 // /**

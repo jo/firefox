@@ -7,7 +7,6 @@
 const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
   LoginHelper: "resource://gre/modules/LoginHelper.sys.mjs",
-  LoginManagerRustStorage: "resource://gre/modules/storage-rust.sys.mjs",
 });
 
 /* Check if an url has punicode encoded hostname */
@@ -60,37 +59,24 @@ export class LoginManagerRustMirror {
     "nsISupportsWeakReference",
   ]);
 
-  constructor(jsonStorage) {
+  constructor(jsonStorage, rustStorage) {
     this.#logger = lazy.LoginHelper.createLogger("LoginManagerRustMirror");
     this.#jsonStorage = jsonStorage;
+    this.#rustStorage = rustStorage;
   }
 
   async enable() {
-    this.#logger.log("Enabling...");
     this.#isEnabled = true;
-    Services.obs.addObserver(this, "passwordmgr-storage-changed");
-    this.#logger.log("Initializing rust storage");
-    this.#rustStorage = new lazy.LoginManagerRustStorage();
-    await this.#rustStorage.initialize();
     try {
       await this.maybeRunRollingMigrationToRustStorage();
     } catch (e) {
       this.#logger.error("Login migration failed", e);
       recordMigrationFailure("rolling-migration", e);
     }
-    this.#logger.log("Enabled.");
   }
 
   disable() {
-    this.#logger.log("Disabling...");
     this.#isEnabled = false;
-    try {
-      Services.obs.removeObserver(this, "passwordmgr-storage-changed");
-    } catch (e) {
-      // this.#logger.error(e);
-    }
-    this.#rustStorage = null;
-    this.#logger.log("Disabled.");
   }
 
   get #isActive() {
@@ -171,6 +157,11 @@ export class LoginManagerRustMirror {
   }
 
   async maybeRunRollingMigrationToRustStorage() {
+    // eg in case a primary password has been set after enabling
+    if (!this.#isActive) {
+      return;
+    }
+
     this.#logger.log("Running login migration...");
 
     const jsonChecksum = await this.#jsonStorage.computeShasum();

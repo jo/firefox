@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { LoginManagerStorage_json } from "resource://gre/modules/storage-json.sys.mjs";
+import { LoginManagerRustStorage } from "resource://gre/modules/storage-rust.sys.mjs";
 import { LoginManagerRustMirror } from "resource://gre/modules/rust-mirror.sys.mjs";
 
 const lazy = {};
@@ -14,54 +15,53 @@ ChromeUtils.defineESModuleGetters(lazy, {
 
 export class LoginManagerStorage extends LoginManagerStorage_json {
   static #jsonStorage = null;
+  static #rustStorage = null;
   static #rustMirror = null;
   static #logger = lazy.LoginHelper.createLogger("LoginManagerStorage");
   static #initializationPromise = null;
 
   static create(callback) {
     Services.prefs.addObserver("signon.loginsRustMirror.enabled", () =>
-      this.#maybeInitializeRustMirror()
+      this.#maybeEnableRustMirror()
     );
 
     if (this.#initializationPromise) {
       this.#logger.log("json storage already initialized");
     } else {
       this.#jsonStorage = new LoginManagerStorage_json();
-      this.#logger.log("initializing json storage");
+      this.#rustStorage = new LoginManagerRustStorage();
+      this.#rustMirror = new LoginManagerRustMirror(
+        this.#jsonStorage,
+        this.#rustStorage
+      );
+
+      Services.obs.addObserver(this.#rustMirror, "passwordmgr-storage-changed");
+
       this.#initializationPromise = new Promise(resolve =>
-        this.#jsonStorage.initialize().then(resolve)
+        this.#jsonStorage
+          .initialize()
+          .then(() => this.#rustStorage.initialize())
+          .then(resolve)
       );
     }
 
     this.#initializationPromise
       .then(() => callback?.())
-      .then(() => this.#maybeInitializeRustMirror());
+      .then(() => this.#maybeEnableRustMirror());
 
     return this.#jsonStorage;
   }
 
-  /* eslint-disable consistent-return */
-  static #maybeInitializeRustMirror() {
+  static #maybeEnableRustMirror() {
     const loginsRustMirrorEnabled =
       Services.prefs.getBoolPref("signon.loginsRustMirror.enabled", true) &&
       !lazy.LoginHelper.isPrimaryPasswordSet();
 
-    if (this.#rustMirror) {
-      this.#logger.log("rust mirror already initialized");
-      if (loginsRustMirrorEnabled) {
-        return this.#rustMirror.enable();
-      }
-      this.#logger.log("disabling rust mirror");
-      return this.#rustMirror.disable();
-    }
-
-    if (!this.#jsonStorage) {
-      return;
-    }
-
-    this.#logger.log("initializing rust mirror");
-    this.#rustMirror = new LoginManagerRustMirror(this.#jsonStorage);
-
-    return this.#rustMirror.enable();
+    this.#logger.log(
+      loginsRustMirrorEnabled ? "enabling rust mirror" : "disabling rust mirror"
+    );
+    return loginsRustMirrorEnabled
+      ? this.#rustMirror.enable()
+      : this.#rustMirror.disable();
   }
 }
