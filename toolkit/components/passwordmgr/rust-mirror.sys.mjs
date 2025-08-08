@@ -28,17 +28,17 @@ function recordPasswordCountDiff(jsonStorage, rustStorage) {
 
 function recordIncompatibleFormats(loginInfo) {
   if (isPunycode(loginInfo.origin)) {
-    Glean.pwmgr.incompatibleLoginFormat.nonAsciiOrigin.add();
+    Glean.pwmgr.rustIncompatibleLoginFormat.nonAsciiOrigin.add();
   }
   if (isPunycode(loginInfo.formActionOrigin)) {
-    Glean.pwmgr.incompatibleLoginFormat.nonAsciiFormAction.add();
+    Glean.pwmgr.rustIncompatibleLoginFormat.nonAsciiFormAction.add();
   }
 
   if (loginInfo.origin === ".") {
-    Glean.pwmgr.incompatibleLoginFormat.dotOrigin.add();
+    Glean.pwmgr.rustIncompatibleLoginFormat.dotOrigin.add();
   }
   if (loginInfo.formActionOrigin === ".") {
-    Glean.pwmgr.incompatibleLoginFormat.dotFormActionOrigin.add();
+    Glean.pwmgr.rustIncompatibleLoginFormat.dotFormActionOrigin.add();
   }
 }
 
