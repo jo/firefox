@@ -42,6 +42,7 @@ EXTRA_JS_MODULES += [
     "LoginRecipes.sys.mjs",
     "LoginRelatedRealms.sys.mjs",
     "PasswordRulesManager.sys.mjs",
+    "rust-mirror.sys.mjs",
     "storage-json.sys.mjs",
     "storage-rust.sys.mjs",
 ]
