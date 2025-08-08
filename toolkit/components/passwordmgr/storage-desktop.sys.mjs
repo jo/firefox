@@ -16,27 +16,31 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
   static #jsonStorage = null;
   static #rustMirror = null;
   static #logger = lazy.LoginHelper.createLogger("LoginManagerStorage");
+  static #initializationPromise = null;
 
   static create(callback) {
     Services.prefs.addObserver("signon.loginsRustMirror.enabled", () =>
       this.#maybeInitializeRustMirror()
     );
 
-    if (this.#jsonStorage) {
-      callback?.();
+    if (this.#initializationPromise) {
       this.#logger.log("json storage already initialized");
-      this.#maybeInitializeRustMirror();
     } else {
       this.#jsonStorage = new LoginManagerStorage_json();
       this.#logger.log("initializing json storage");
-      this.#jsonStorage.initialize()
-        .then(() => this.#maybeInitializeRustMirror())
-        .then(() => callback?.());
+      this.#initializationPromise = new Promise(resolve =>
+        this.#jsonStorage.initialize().then(resolve)
+      );
     }
+
+    this.#initializationPromise
+      .then(() => callback?.())
+      .then(() => this.#maybeInitializeRustMirror());
 
     return this.#jsonStorage;
   }
 
+  /* eslint-disable consistent-return */
   static #maybeInitializeRustMirror() {
     const loginsRustMirrorEnabled =
       Services.prefs.getBoolPref("signon.loginsRustMirror.enabled", true) &&
@@ -44,13 +48,13 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
 
     if (this.#rustMirror) {
       this.#logger.log("rust mirror already initialized");
-      if (!loginsRustMirrorEnabled) {
-        this.#logger.log("disabling rust mirror");
-        this.#rustMirror.disable();
+      if (loginsRustMirrorEnabled) {
+        return this.#rustMirror.enable();
       }
-      return;
+      this.#logger.log("disabling rust mirror");
+      return this.#rustMirror.disable();
     }
-    
+
     if (!this.#jsonStorage) {
       return;
     }

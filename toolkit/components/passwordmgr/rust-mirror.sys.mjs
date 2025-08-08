@@ -7,7 +7,7 @@
 const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
   LoginHelper: "resource://gre/modules/LoginHelper.sys.mjs",
-  LoginManagerRustStorage:  "resource://gre/modules/storage-rust.sys.mjs",
+  LoginManagerRustStorage: "resource://gre/modules/storage-rust.sys.mjs",
 });
 
 /* Check if an url has punicode encoded hostname */
@@ -55,23 +55,20 @@ export class LoginManagerRustMirror {
   #rustStorage = null;
   #isEnabled = false;
 
-  constructor(jsonStorage) {
-    this.#logger = lazy.LoginHelper.createLogger("LoginManagerRustMirror");
-    this.#jsonStorage = jsonStorage;
-  }
-
   QueryInterface = ChromeUtils.generateQI([
     "nsIObserver",
     "nsISupportsWeakReference",
   ]);
 
+  constructor(jsonStorage) {
+    this.#logger = lazy.LoginHelper.createLogger("LoginManagerRustMirror");
+    this.#jsonStorage = jsonStorage;
+  }
+
   async enable() {
     this.#logger.log("Enabling...");
     this.#isEnabled = true;
-    Services.obs.addObserver(
-      this,
-      "passwordmgr-storage-changed"
-    );
+    Services.obs.addObserver(this, "passwordmgr-storage-changed");
     this.#logger.log("Initializing rust storage");
     this.#rustStorage = new lazy.LoginManagerRustStorage();
     await this.#rustStorage.initialize();
@@ -87,10 +84,11 @@ export class LoginManagerRustMirror {
   disable() {
     this.#logger.log("Disabling...");
     this.#isEnabled = false;
-    Services.obs.removeObserver(
-      this,
-      "passwordmgr-storage-changed"
-    );
+    try {
+      Services.obs.removeObserver(this, "passwordmgr-storage-changed");
+    } catch (e) {
+      // this.#logger.error(e);
+    }
     this.#rustStorage = null;
     this.#logger.log("Disabled.");
   }
@@ -99,6 +97,7 @@ export class LoginManagerRustMirror {
     return this.#isEnabled && !lazy.LoginHelper.isPrimaryPasswordSet();
   }
 
+  // nsIObserver
   async observe(subject, _, eventName) {
     this.#logger.log(`received change event ${eventName}...`);
 
@@ -167,9 +166,7 @@ export class LoginManagerRustMirror {
         break;
 
       default:
-        console.error(
-          `error: received unhandled event "${eventName}"`
-        );
+        console.error(`error: received unhandled event "${eventName}"`);
     }
   }
 
