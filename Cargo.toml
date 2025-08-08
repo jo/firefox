@@ -256,6 +256,8 @@ tabs = { git = "https://github.com/mozilla/application-services", rev = "724f165
 tracing-support = { git = "https://github.com/mozilla/application-services", rev = "724f165c31adb85bad94ada2e3f8621481a74754" }
 viaduct = { git = "https://github.com/mozilla/application-services", rev = "724f165c31adb85bad94ada2e3f8621481a74754" }
 webext-storage = { git = "https://github.com/mozilla/application-services", rev = "724f165c31adb85bad94ada2e3f8621481a74754" }
+logins = { git = "https://github.com/mozilla/application-services", rev = "724f165c31adb85bad94ada2e3f8621481a74754", features = ["keydb"] }
+init_rust_components = { git = "https://github.com/mozilla/application-services", rev = "724f165c31adb85bad94ada2e3f8621481a74754" }
 
 allocator-api2 = { path = "third_party/rust/allocator-api2" }
 
