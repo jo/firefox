@@ -846,9 +846,9 @@ pwmgr:
       Records any difference in the number of saved logins between JSON
       storage and Rust storage.
     bugs:
-      - TODO open Bug
+      - https://bugzil.la/1981810
     data_reviews:
-      - TODO submit Datareview
+      - https://bugzil.la/1981810
     notification_emails:
       - passwords-dev@mozilla.org
     expires: never
@@ -861,9 +861,9 @@ pwmgr:
       Records failures from operations in the Rust password store, including
       the operation type and error message.
     bugs:
-      - TODO open Bug
+      - https://bugzil.la/1981812
     data_reviews:
-      - TODO submit Datareview
+      - https://bugzil.la/1981812
     notification_emails:
       - passwords-dev@mozilla.org
     expires: never
@@ -890,9 +890,9 @@ pwmgr:
     - nonAsciiOrigin
     - nonAsciiFormAction
     bugs:
-      - TODO open Bug
+      - https://bugzil.la/1981814
     data_reviews:
-      - TODO submit Datareview
+      - https://bugzil.la/1981814
     notification_emails:
       - passwords-dev@mozilla.org
     expires: never
