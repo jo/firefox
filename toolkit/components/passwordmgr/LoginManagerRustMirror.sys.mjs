@@ -7,6 +7,42 @@ ChromeUtils.defineESModuleGetters(lazy, {
   LoginHelper: "resource://gre/modules/LoginHelper.sys.mjs",
 });
 
+/* Check if an url has punicode encoded hostname */
+function isPunycode(origin) {
+  try {
+    return origin && new URL(origin).hostname.startsWith("xn--");
+  } catch (_) {
+    return false;
+  }
+}
+
+function recordPasswordCountDiff(jsonStorage, rustStorage) {
+  const jsonCount = jsonStorage.countLogins("", "", "");
+  const rustCount = rustStorage.countLogins("", "", "");
+  const diff = jsonCount - rustCount;
+  Glean.pwmgr.diffSavedPasswordsRust.set(diff);
+}
+
+function recordIncompatibleFormats(loginInfo) {
+  if (isPunycode(loginInfo.origin)) {
+    Glean.pwmgr.rustIncompatibleLoginFormat.nonAsciiOrigin.add();
+  }
+  if (isPunycode(loginInfo.formActionOrigin)) {
+    Glean.pwmgr.rustIncompatibleLoginFormat.nonAsciiFormAction.add();
+  }
+
+  if (loginInfo.origin === ".") {
+    Glean.pwmgr.rustIncompatibleLoginFormat.dotOrigin.add();
+  }
+}
+
+function recordMigrationFailure(operation, error) {
+  Glean.pwmgr.rustMigrationFailure.record({
+    operation,
+    error_message: error.message ?? String(error),
+  });
+}
+
 export class LoginManagerRustMirror {
   #logger = null;
   #jsonStorage = null;
@@ -30,6 +66,7 @@ export class LoginManagerRustMirror {
       await this.maybeRunRollingMigrationToRustStorage();
     } catch (e) {
       this.#logger.error("Login migration failed", e);
+      recordMigrationFailure("rolling-migration", e);
     }
   }
 
@@ -47,6 +84,7 @@ export class LoginManagerRustMirror {
 
     // eg in case a primary password has been set after enabling
     if (!this.#isActive) {
+      this.#logger.log("Mirror is not active. Change will not be mirrored.");
       return;
     }
 
@@ -54,9 +92,14 @@ export class LoginManagerRustMirror {
       case "addLogin":
         this.#logger.log(`adding login ${subject.guid}...`);
         try {
+          recordIncompatibleFormats(subject);
+
           await this.#rustStorage.addLoginsAsync([subject]);
+
+          recordPasswordCountDiff(this.#jsonStorage, this.#rustStorage);
         } catch (e) {
           this.#logger.error("mirror-error:", e);
+          recordMigrationFailure("add", e);
         }
         this.#logger.log(`added login ${subject.guid}.`);
         break;
@@ -66,9 +109,14 @@ export class LoginManagerRustMirror {
         const newLoginData = subject.queryElementAt(1, Ci.nsILoginInfo);
         this.#logger.log(`modifying login ${loginToModify.guid}...`);
         try {
+          recordIncompatibleFormats(subject);
+
           this.#rustStorage.modifyLogin(loginToModify, newLoginData);
+
+          recordPasswordCountDiff(this.#jsonStorage, this.#rustStorage);
         } catch (e) {
           this.#logger.error("error: modifyLogin:", e);
+          recordMigrationFailure("modify-login", e);
         }
         this.#logger.log(`modified login ${loginToModify.guid}.`);
         break;
@@ -77,8 +125,11 @@ export class LoginManagerRustMirror {
         this.#logger.log(`removing login ${subject.guid}...`);
         try {
           this.#rustStorage.removeLogin(subject);
+
+          recordPasswordCountDiff(this.#jsonStorage, this.#rustStorage);
         } catch (e) {
           this.#logger.error("error: removeLogin:", e);
+          recordMigrationFailure("remove-login", e);
         }
         this.#logger.log(`removed login ${subject.guid}.`);
         break;
@@ -87,8 +138,11 @@ export class LoginManagerRustMirror {
         this.#logger.log("removing all logins...");
         try {
           this.#rustStorage.removeAllLogins();
+
+          recordPasswordCountDiff(this.#jsonStorage, this.#rustStorage);
         } catch (e) {
           this.#logger.error("error: removeAllLogins:", e);
+          recordMigrationFailure("remove-all-logins", e);
         }
         this.#logger.log("removed all logins.");
         break;
@@ -99,14 +153,16 @@ export class LoginManagerRustMirror {
   }
 
   async maybeRunRollingMigrationToRustStorage() {
+    this.#logger.log("Checking whether migration is needed.");
+
     // eg in case a primary password has been set after enabling
     if (!this.#isActive) {
+      this.#logger.log("Mirror is not active. No migration needed..");
       return;
     }
 
     // wait until loaded
     await this.#jsonStorage.initializationPromise;
-    this.#logger.log("Running login migration...");
 
     const jsonChecksum = await this.#jsonStorage.computeSha256();
     const rustCheckpoint = this.#rustStorage.getCheckpoint();
@@ -128,18 +184,19 @@ export class LoginManagerRustMirror {
 
     const logins = await this.#jsonStorage.getAllLogins();
 
-    await this.#rustStorage.addLoginsAsync(logins, true);
-    // const batchSize = 300;
-    // for (let i = 0; i < logins.length; i += batchSize) {
-    //   const batch = logins.slice(i, i + batchSize);
-
-    //   await this.#rustStorage.addLoginsAsync(batch, true);
-    // }
+    const results = await this.#rustStorage.addLoginsAsync(logins, true);
+    for (const { error } of results) {
+      if (error) {
+        this.#logger.error("error during rolling migration:", error);
+        recordMigrationFailure("add", error);
+      }
+    }
 
     this.#logger.log(`Successfully migrated ${logins.length} logins.`);
 
     this.#rustStorage.setCheckpoint(jsonChecksum);
     this.#logger.log("Migration complete. Checkpoint updated.");
+    recordPasswordCountDiff(this.#jsonStorage, this.#rustStorage);
 
     this.#logger.log("Login migration finished.");
   }

@@ -17,10 +17,13 @@ const { sinon } = ChromeUtils.importESModule(
 ("use strict");
 
 /**
- * Enable Rust mirror
+ * Enable Rust mirror and setup Glean
  */
 add_setup(async () => {
   Services.prefs.setBoolPref("signon.loginsRustMirror.enabled", true);
+  // Required for FOG/Glean to work correctly in tests
+  do_get_profile();
+  Services.fog.initializeFOG();
 });
 
 /**
@@ -199,53 +202,10 @@ add_task(async function test_avoid_redundant_updates() {
 
   Assert.ok(stub.notCalled, "Should skip unchanged login migration");
 
-  stub.restore();
-
   await LoginTestUtils.clearData();
   rustStorage.removeAllLogins();
+  stub.restore();
 });
-
-// /**
-//  * Tests that rolling migration aborts on partial failure.
-//  * If one login fails to migrate, none should be written to Rust storage.
-//  * Ensures consistency by preventing partially migrated state. The second
-//  * login would succeed if attempted, but the migration logic is expected
-//  * to abort on the first error.
-//  */
-// add_task(async function test_migration_aborts_on_partial_failure() {
-//   const rustStorage = new LoginManagerRustStorage();
-//   await rustStorage.initialize();
-//
-//   const loginA = TestData.formLogin({ username: "userA" });
-//   const loginB = TestData.formLogin({ username: "userB" });
-//
-//   await Services.logins.addLogins([loginA, loginB]);
-//
-//   sinon.stub(rustStorage, "getCheckpoint").returns("forced-checksum-mismatch");
-//
-//   const stub = sinon
-//     .stub(rustStorage, "addLoginsAsync")
-//     .onFirstCall()
-//     .rejects(new Error("Simulated migration failure"));
-//
-//   try {
-//     await Assert.rejects(
-//       LoginManagerStorage.maybeRunRollingMigrationToRustStorage(Services.logins, rustStorage),
-//       /Simulated migration failure/,
-//       "Migration should fail when one login fails to copy"
-//     );
-//
-//     const migratedLogins = await rustStorage.getAllLogins();
-//     Assert.equal(
-//       migratedLogins.length,
-//       0,
-//       "No logins should be migrated if one fails"
-//     );
-//   } finally {
-//     stub.restore();
-//     await LoginTestUtils.clearData();
-//   }
-// });
 
 /**
  * Ensures that migrating a large number of logins (100) from the JSON store to
@@ -269,7 +229,9 @@ add_task(async function test_migration_time_under_threshold() {
   Services.prefs.setBoolPref("signon.loginsRustMirror.enabled", true);
   const mirror = new LoginManagerRustMirror(Services.logins, rustStorage);
   await mirror.enable();
-  sinon.stub(rustStorage, "getCheckpoint").returns("force-migration");
+  const stub = sinon
+    .stub(rustStorage, "getCheckpoint")
+    .returns("force-migration");
 
   const start = Date.now();
   await mirror.maybeRunRollingMigrationToRustStorage();
@@ -278,6 +240,185 @@ add_task(async function test_migration_time_under_threshold() {
   Assert.less(duration, 1000, "Migration should complete under 1s");
 
   Assert.equal(rustStorage.countLogins("", "", ""), numberOfLogins);
+  await LoginTestUtils.clearData();
+  rustStorage.removeAllLogins();
+  stub.restore();
+});
+
+/*
+ * Tests that the number of saved logins is appropriately reported to
+ * the rust storage.
+ */
+add_task(async function test_logins_diff_count_rust_storage() {
+  Services.fog.testResetFOG();
+  const rustStorage = new LoginManagerRustStorage();
+  await rustStorage.initialize();
+
+  const mirror = new LoginManagerRustMirror(Services.logins, rustStorage);
+  await mirror.enable();
+
+  // Add login to JSON store
+  const login = TestData.formLogin({ username: "glean_user" });
+  await Services.logins.addLoginAsync(login);
+
+  await mirror.maybeRunRollingMigrationToRustStorage();
+
+  // Force a migration by stubbing the checkpoint
+  sinon.stub(rustStorage, "getCheckpoint").returns("force-migration");
+  const expectedDiff = 0;
+
+  await mirror.maybeRunRollingMigrationToRustStorage();
+
+  Assert.equal(
+    Glean.pwmgr.diffSavedPasswordsRust.testGetValue(),
+    expectedDiff,
+    "Rust and JSON storage should have the same number of saved passwords"
+  );
+
+  await LoginTestUtils.clearData();
+  rustStorage.removeAllLogins();
+});
+
+/*
+ * Tests that an error is logged when adding an invalid login to the Rust store.
+ * The Rust store is stricter than the JSON store and rejects some formats,
+ * such as certain non-ASCII origins.
+ */
+add_task(async function test_rust_mirror_addLogin_failure() {
+  Services.fog.testResetFOG();
+  // This login will be accepted by JSON but rejected by Rust
+  const badLogin = TestData.formLogin({ origin: ".", passwordField: "." });
+
+  await Services.logins.addLoginAsync(badLogin);
+  const allLoginsJson = await Services.logins.getAllLogins();
+  Assert.equal(
+    allLoginsJson.length,
+    1,
+    "single dot origin login saved to JSON"
+  );
+
+  const rustStorage = new LoginManagerRustStorage();
+  await rustStorage.initialize();
+
+  const allLogins = await rustStorage.getAllLogins();
+  Assert.equal(
+    allLogins.length,
+    0,
+    "single dot origin login not saved to Rust"
+  );
+
+  const [evt] = Glean.pwmgr.rustMigrationFailure.testGetValue();
+  Assert.ok(evt, "event has been emitted");
+  Assert.equal(evt.extra?.operation, "add", "event has operation");
+  Assert.equal(
+    evt.extra?.error_message,
+    "Invalid login: Login has illegal origin",
+    "event has error_message"
+  );
+  Assert.equal(evt.name, "rust_migration_failure", "event has name");
+
+  await LoginTestUtils.clearData();
+  rustStorage.removeAllLogins();
+});
+
+/*
+ * Tests that we collect telemetry if non-ASCII origins get punycoded.
+ */
+add_task(async function test_punycode_origin_metric() {
+  Services.fog.testResetFOG();
+
+  const punicodeOrigin = "https://münich.example.com";
+  const login = LoginTestUtils.testData.formLogin({
+    origin: punicodeOrigin,
+    formActionOrigin: "https://example.com",
+    username: "user1",
+    password: "pass1",
+  });
+
+  await Services.logins.addLoginAsync(login);
+
+  const rustStorage = new LoginManagerRustStorage();
+  await rustStorage.initialize();
+
+  const allLogins = await rustStorage.getAllLogins();
+  Assert.equal(allLogins.length, 1, "punicode origin login saved to Rust");
+  const [rustLogin] = allLogins;
+  Assert.equal(
+    rustLogin.origin,
+    "https://xn--mnich-kva.example.com",
+    "origin has been punicoded on the Rust side"
+  );
+
+  const evt =
+    Glean.pwmgr.rustIncompatibleLoginFormat.nonAsciiOrigin.testGetValue();
+  Assert.equal(evt, 1, "event has been emitted");
+
+  await LoginTestUtils.clearData();
+  rustStorage.removeAllLogins();
+});
+
+/*
+ * Tests that we collect telemetry if non-ASCII formorigins get punycoded.
+ */
+add_task(async function test_punycode_formActionOrigin_metric() {
+  Services.fog.testResetFOG();
+
+  const punicodeFormOrigin = "https://münich.example.com";
+  const login = LoginTestUtils.testData.formLogin({
+    origin: "https://example.com",
+    formActionOrigin: punicodeFormOrigin,
+    username: "user1",
+    password: "pass1",
+  });
+
+  await Services.logins.addLoginAsync(login);
+
+  const rustStorage = new LoginManagerRustStorage();
+  await rustStorage.initialize();
+
+  const allLogins = await rustStorage.getAllLogins();
+  Assert.equal(
+    allLogins.length,
+    1,
+    "punicode form action origin login saved to Rust"
+  );
+  const [rustLogin] = allLogins;
+  Assert.equal(
+    rustLogin.formActionOrigin,
+    "https://xn--mnich-kva.example.com",
+    "form action origin has been punicoded on the Rust side"
+  );
+
+  const evt =
+    Glean.pwmgr.rustIncompatibleLoginFormat.nonAsciiFormAction.testGetValue();
+  Assert.equal(evt, 1, "event has been emitted");
+
+  await LoginTestUtils.clearData();
+  rustStorage.removeAllLogins();
+});
+
+/*
+ * Tests that we collect telemetry for single dot in origin
+ */
+add_task(async function test_single_dot_in_origin() {
+  Services.fog.testResetFOG();
+
+  const badOrigin = ".";
+  const login = LoginTestUtils.testData.formLogin({
+    origin: badOrigin,
+    formActionOrigin: "https://example.com",
+    username: "user1",
+    password: "pass1",
+  });
+
+  await Services.logins.addLoginAsync(login);
+
+  const rustStorage = new LoginManagerRustStorage();
+  await rustStorage.initialize();
+
+  const evt = Glean.pwmgr.rustIncompatibleLoginFormat.dotOrigin.testGetValue();
+  Assert.equal(evt, 1, "event has been emitted");
+
   await LoginTestUtils.clearData();
   rustStorage.removeAllLogins();
 });
