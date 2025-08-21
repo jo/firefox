@@ -208,6 +208,123 @@ add_task(async function test_avoid_redundant_updates() {
 });
 
 /**
+ * Verify that the rolling migration:
+ *  - continues when some rows fail (partial failure),
+ *  - still migrates valid logins,
+ *  - and sets the checkpoint at the end.
+ */
+add_task(async function test_migration_partial_failure_sets_checkpoint() {
+  const login_ok = TestData.formLogin({
+    username: "test-user-ok",
+    password: "secure-password",
+  });
+  await Services.logins.addLoginAsync(login_ok);
+  const login_bad = TestData.formLogin({
+    username: "test-user-bad",
+    password: "secure-password",
+  });
+  await Services.logins.addLoginAsync(login_bad);
+
+  const rustStorage = new LoginManagerRustStorage();
+  await rustStorage.initialize();
+  const mirror = new LoginManagerRustMirror(Services.logins, rustStorage);
+
+  sinon.stub(rustStorage, "getCheckpoint").returns("force-migration");
+  const setCpSpy = sinon.spy(rustStorage, "setCheckpoint");
+
+  // Save the first (valid) login into Rust for real, then simulate results
+  sinon.stub(rustStorage, "addLoginsAsync").callsFake(async (logins, _cont) => {
+    await rustStorage.addWithMeta(logins[0]);
+    return [
+      { login: {},   error: null },                        // row 0 success
+      { login: null, error: { message: "row failed" } },   // row 1 failure
+    ];
+  });
+
+  try {
+    await mirror.enable(); 
+    const rustLogins = await rustStorage.getAllLogins();
+    Assert.equal(rustLogins.length, 1, "only valid login migrated");
+    Assert.ok(setCpSpy.calledOnce, "checkpoint was set");
+  } finally {
+    sinon.restore();
+    await LoginTestUtils.clearData();
+    rustStorage.removeAllLogins();
+  }
+});
+
+/**
+ * Verify that when the bulk add operation rejects (hard failure),
+ * the migration itself rejects and no checkpoint is written.
+ */
+add_task(async function test_migration_rejects_when_bulk_add_rejects() {
+  const login = TestData.formLogin({
+    username: "test-user",
+    password: "secure-password",
+  });
+  await Services.logins.addLoginAsync(login);
+
+  const rustStorage = new LoginManagerRustStorage();
+  await rustStorage.initialize();
+  const mirror = new LoginManagerRustMirror(Services.logins, rustStorage);
+
+  //force the bulk add to fail
+  sinon.stub(rustStorage, "getCheckpoint").returns("force-migration");
+  sinon.stub(rustStorage, "addLoginsAsync").rejects(new Error("bulk failed"));
+  const setCheckpointSpy = sinon.spy(rustStorage, "setCheckpoint");
+
+  try {
+    await mirror.enable();
+    await Assert.rejects(
+      mirror.maybeRunRollingMigrationToRustStorage(),
+      /bulk failed/,
+      "migration should propagate a hard failure (bulk reject)"
+    );
+
+    // After a hard failure, no checkpoint must be set.
+    Assert.ok(setCheckpointSpy.notCalled, "checkpoint must not be set on hard failure");
+  } finally {
+    sinon.restore();
+    await LoginTestUtils.clearData();
+    rustStorage.removeAllLogins();
+  }
+});
+
+/**
+ * Verify that if writing the checkpoint throws an error,
+ * the migration rejects instead of silently succeeding.
+ */
+add_task(async function test_migration_rejects_when_setCheckpoint_throws() {
+  const login = TestData.formLogin({
+    username: "test-user",
+    password: "secure-password",
+  });
+  await Services.logins.addLoginAsync(login);
+
+  const rustStorage = new LoginManagerRustStorage();
+  await rustStorage.initialize();
+  const mirror = new LoginManagerRustMirror(Services.logins, rustStorage);
+  await mirror.enable();
+
+  // Force migration always
+  sinon.stub(rustStorage, "getCheckpoint").returns("force-migration");
+  // Force failure on checkpoint write
+  sinon.stub(rustStorage, "setCheckpoint").throws(new Error("cp failed"));
+
+  try {
+    await Assert.rejects(
+      mirror.maybeRunRollingMigrationToRustStorage(),
+      /cp failed/,
+      "migration should reject when setCheckpoint throws"
+    );
+   } finally {
+      sinon.restore();
+      await LoginTestUtils.clearData();
+      rustStorage.removeAllLogins();
+    }
+});
+
+/**
  * Ensures that migrating a large number of logins (100) from the JSON store to
  * the Rust store completes within a reasonable time frame (under 1 second).
  **/
