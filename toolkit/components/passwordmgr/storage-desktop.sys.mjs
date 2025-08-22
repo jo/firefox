@@ -64,4 +64,4 @@ export class LoginManagerStorage extends LoginManagerStorage_json {
       ? this.#rustMirror.enable()
       : this.#rustMirror.disable();
   }
-} 
+}
