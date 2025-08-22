@@ -181,7 +181,7 @@ export class LoginManagerStorage_json {
     this._store.ensureDataReady();
 
     // This will also find deleted items.
-    let login = this._store.data.logins.find(l => l.guid == guid);
+    let login = this._store.data.logins.find(login => login.guid == guid);
     if (login?.syncCounter > 0) {
       login.syncCounter = Math.max(0, login.syncCounter - value);
       login.everSynced = true;
@@ -331,14 +331,14 @@ export class LoginManagerStorage_json {
 
     let foundIndex = this._store.data.logins.findIndex(l => l.id == idToDelete);
     if (foundIndex != -1) {
-      const foundLogin = this._store.data.logins[foundIndex];
-      if (!foundLogin.deleted) {
+      let login = this._store.data.logins[foundIndex];
+      if (!login.deleted) {
         if (fromSync) {
-          this.#replaceLoginWithTombstone(foundLogin);
-        } else if (foundLogin.everSynced) {
+          this.#replaceLoginWithTombstone(login);
+        } else if (login.everSynced) {
           // The login has been synced, so mark it as deleted.
-          this.#incrementSyncCounter(foundLogin);
-          this.#replaceLoginWithTombstone(foundLogin);
+          this.#incrementSyncCounter(login);
+          this.#replaceLoginWithTombstone(login);
         } else {
           // The login was never synced, so just remove it from the data.
           this._store.data.logins.splice(foundIndex, 1);
@@ -620,7 +620,7 @@ export class LoginManagerStorage_json {
     }
 
     this.log(
-      `Returning ${foundLogins.length} logins for specified origin with options ${JSON.stringify(aOptions)}`
+      `Returning ${foundLogins.length} logins for specified origin with options ${aOptions}`
     );
     return [foundLogins, foundIds];
   }
@@ -657,9 +657,9 @@ export class LoginManagerStorage_json {
     this._store.ensureDataReady();
     this.log("Removing all logins.");
 
-    const removedLogins = [];
-    const remainingLogins = [];
-    for (const login of this._store.data.logins) {
+    let removedLogins = [];
+    let remainingLogins = [];
+    for (let login of this._store.data.logins) {
       if (
         !removeFXALogin &&
         isFXAHost(login) &&
