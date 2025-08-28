@@ -906,9 +906,9 @@ pwmgr:
       One record per rolling migration run, recording duration and total number 
       of logins migrated.
     bugs:
-      - https://bugzil.la/1981812
+      - https://bugzil.la/1985800
     data_reviews:
-      - https://bugzil.la/1981812
+      - https://bugzil.la/1985800
     data_sensitivity:
       - technical
     notification_emails:
