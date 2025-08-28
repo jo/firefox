@@ -900,6 +900,30 @@ pwmgr:
       - passwords-dev@mozilla.org
     expires: never
 
+  rust_migration_performance:
+    type: event
+    description: >
+      One record per rolling migration run, recording duration and total number 
+      of logins migrated.
+    bugs:
+      - https://bugzil.la/1981812
+    data_reviews:
+      - https://bugzil.la/1981812
+    data_sensitivity:
+      - technical
+    notification_emails:
+      - passwords-dev@mozilla.org
+    expires: never
+    extra_keys:
+      total_logins:
+        description: >
+          Total number of logins migrated during this run.
+        type: string
+      duration_ms:
+        description: >
+          Duration of the migration in milliseconds.
+        type: string
+
   saving_enabled:
     type: boolean
     lifetime: application

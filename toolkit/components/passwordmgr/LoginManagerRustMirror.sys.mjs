@@ -43,6 +43,13 @@ function recordMigrationFailure(operation, error) {
   });
 }
 
+function recordMigrationPerformance(durationMs, totalLogins) {
+  Glean.pwmgr.rustMigrationPerformance.record({
+    duration_ms: String(durationMs),
+    total_logins: String(totalLogins),
+  });
+}
+
 export class LoginManagerRustMirror {
   #logger = null;
   #jsonStorage = null;
@@ -225,11 +232,15 @@ export class LoginManagerRustMirror {
 
     this.#logger.log("Checksums differ. Rolling migration required.");
 
+    const t0 = Date.now();
+    let totalLogins = 0;
+
     try {
       this.#rustStorage.removeAllLogins();
       this.#logger.log("Cleared existing Rust logins.");
 
       const logins = await this.#jsonStorage.getAllLogins();
+      totalLogins = logins.length;
 
       const results = await this.#rustStorage.addLoginsAsync(logins, true);
       for (const { error } of results) {
@@ -246,6 +257,8 @@ export class LoginManagerRustMirror {
 
       this.#logger.log("Login migration finished.");
     } finally {
+      const duration = Date.now() - t0;
+      recordMigrationPerformance(duration, totalLogins);
       this.#rollingMigrationInProgress = false;
     }
   }

@@ -560,6 +560,47 @@ add_task(async function test_single_dot_in_origin() {
   const evt = Glean.pwmgr.rustIncompatibleLoginFormat.dotOrigin.testGetValue();
   Assert.equal(evt, 1, "event has been emitted");
 
-  await LoginTestUtils.clearData();
+  LoginTestUtils.clearData();
+  rustStorage.removeAllLogins();
+});
+
+/**
+ * Tests that a rust_migration_performance event is recorded after migration,
+ * containing both duration and total number of migrated logins.
+ */
+add_task(async function test_migration_performance_probe() {
+  Services.fog.testResetFOG();
+
+  const login = TestData.formLogin({
+    username: "perf-user",
+    password: "perf-password",
+  });
+  await Services.logins.addLoginAsync(login);
+
+  const rustStorage = new LoginManagerRustStorage();
+  await rustStorage.initialize();
+  const mirror = new LoginManagerRustMirror(Services.logins, rustStorage);
+
+  // Force migration to run
+  sinon.stub(rustStorage, "getCheckpoint").returns("force-migration");
+
+  await mirror.enable();
+  await mirror.maybeRunRollingMigrationToRustStorage();
+
+  const evt = Glean.pwmgr.rustMigrationPerformance.testGetValue();
+  Assert.ok(evt, "rustMigrationPerformance event should have been emitted");
+  Assert.equal(
+    evt.extra?.total_logins,
+    "1",
+    "event should record total migrated logins"
+  );
+  Assert.ok(
+    parseInt(evt.extra?.duration_ms, 10) >= 0,
+    "event should record non-negative duration in ms"
+  );
+
+  mirror.disable();
+  sinon.restore();
+  LoginTestUtils.clearData();
   rustStorage.removeAllLogins();
 });
