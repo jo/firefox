@@ -8426,6 +8426,7 @@ dialog::after {
 
 .follow-section-button-highlight .feature-highlight-modal {
   padding: var(--space-large);
+  width: auto;
 }
 .follow-section-button-highlight .feature-highlight-modal p {
   margin: 0;
@@ -8436,6 +8437,16 @@ dialog::after {
 .follow-section-button-highlight .feature-highlight-modal .icon-dismiss {
   margin-block-start: 0;
   margin-inline-end: 0;
+}
+.follow-section-button-highlight .feature-highlight-modal > moz-button {
+  position: absolute;
+  inset-inline-end: var(--space-large);
+  inset-block-start: var(--space-large);
+}
+@media (prefers-color-scheme: dark) {
+  .follow-section-button-highlight.is-inverted-dark-dismiss-button .feature-highlight-modal > moz-button {
+    --button-icon-fill: var(--color-gray-70);
+  }
 }
 .follow-section-button-highlight .feature-highlight-modal.arrow-inline-start {
   inset-block-start: calc(100% + var(--space-large));
@@ -8468,6 +8479,7 @@ dialog::after {
 }
 .follow-section-button-highlight .follow-section-button-highlight-content {
   display: flex;
+  flex-direction: column;
   gap: var(--space-medium);
 }
 .follow-section-button-highlight .follow-section-button-highlight-copy {
@@ -8532,17 +8544,19 @@ dialog::after {
   pointer-events: none;
 }
 .wallpaper-feature-highlight .feature-highlight .feature-highlight-modal > moz-button {
-  margin-inline-start: calc(-1 * var(--space-xlarge));
+  position: absolute;
+  inset-inline-end: var(--space-large);
+  inset-block-start: var(--space-large);
 }
 @media (prefers-color-scheme: dark) {
-  .wallpaper-feature-highlight .feature-highlight .feature-highlight-modal > moz-button {
-    --dark-icon-color: var(--color-gray-70);
-    background-color: var(--dark-icon-color);
+  .wallpaper-feature-highlight.is-inverted-dark-dismiss-button .feature-highlight-modal > moz-button {
+    --button-icon-fill: var(--color-gray-70);
   }
 }
 
 .shortcut-feature-highlight .feature-highlight-modal {
   padding: var(--space-large);
+  width: auto;
 }
 .shortcut-feature-highlight .feature-highlight-modal p {
   margin: 0;
@@ -8558,12 +8572,19 @@ dialog::after {
   margin-block-start: var(--space-large);
   inset-inline-end: var(--space-xlarge);
 }
-.shortcut-feature-highlight .feature-highlight-modal img {
-  -moz-context-properties: fill;
-  fill: currentColor;
+.shortcut-feature-highlight .feature-highlight-modal > moz-button {
+  position: absolute;
+  inset-inline-end: var(--space-large);
+  inset-block-start: var(--space-large);
+}
+@media (prefers-color-scheme: dark) {
+  .shortcut-feature-highlight.is-inverted-dark-dismiss-button .feature-highlight-modal > moz-button {
+    --button-icon-fill: var(--color-gray-70);
+  }
 }
 .shortcut-feature-highlight .shortcut-feature-highlight-content {
   display: flex;
+  flex-direction: column;
   gap: var(--space-medium);
 }
 .shortcut-feature-highlight .shortcut-feature-highlight-copy {

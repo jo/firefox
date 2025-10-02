@@ -812,6 +812,31 @@ void nsIFrame::HandlePrimaryFrameStyleChange(ComputedStyle* aOldStyle) {
     }
   }
 
+  // According to the Anchor Positioning spec,
+  // https://drafts.csswg.org/css-anchor-position-1/#last-successful-position-option:
+  //
+  //   If el has a last successful position option remove its last successful
+  //   position option if any of the following are true:
+  //     1. Its computed position value has changed, its containing block has
+  //        changed, or it no longer generates a box.
+  //     2. Its computed value for any longhand of position-try has changed.
+  //     3. Its computed value for any @position-try property has changed.
+  //     4. Any of the @position-try rules referenced by it have been added,
+  //        removed, or mutated.
+  //
+  // Case 1 will cause a reframe, so does not need to be handled here.
+  // Case 2 is what is handled here.
+  // TODO: cases 3 and 4, see bug 1987960 and bug 1962598.
+  if (aOldStyle && HasAnyStateBits(NS_FRAME_OUT_OF_FLOW) &&
+      HasProperty(LastSuccessfulPositionFallback())) {
+    const auto* pos = StylePosition();
+    const auto* oldPos = aOldStyle->StylePosition();
+    if (pos->mPositionTryFallbacks != oldPos->mPositionTryFallbacks ||
+        pos->mPositionTryOrder != oldPos->mPositionTryOrder) {
+      RemoveProperty(LastSuccessfulPositionFallback());
+    }
+  }
+
   const auto cv = disp->ContentVisibility(*this);
   if (!oldDisp || oldDisp->ContentVisibility(*this) != cv) {
     if (cv == StyleContentVisibility::Auto) {
@@ -10978,7 +11003,12 @@ bool nsIFrame::FinishAndStoreOverflow(OverflowAreas& aOverflowAreas,
       TransformReferenceBox refBox(this);
       for (const auto otype : AllOverflowTypes()) {
         nsRect& o = aOverflowAreas.Overflow(otype);
-        o = nsDisplayTransform::TransformRect(o, this, refBox);
+        // If the overflow is empty, it can still have a non-zero length in one
+        // axis. Transforming such axis-bound rect can cause the resulting rect
+        // to be non-empty, e.g. by rotating the rect.
+        if (!o.IsEmpty()) {
+          o = nsDisplayTransform::TransformRect(o, this, refBox);
+        }
       }
 
       /* If we're the root of the 3d context, then we want to include the

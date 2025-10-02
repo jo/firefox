@@ -8928,35 +8928,47 @@ function FeatureHighlight({
 
 
 function ShortcutFeatureHighlight({
-  position,
   dispatch,
-  handleDismiss,
+  feature,
   handleBlock,
-  feature
+  handleDismiss,
+  messageData,
+  position
 }) {
   const onDismiss = (0,external_React_namespaceObject.useCallback)(() => {
     handleDismiss();
     handleBlock();
   }, [handleDismiss, handleBlock]);
   return /*#__PURE__*/external_React_default().createElement("div", {
-    className: "shortcut-feature-highlight"
+    className: `shortcut-feature-highlight ${messageData.content?.darkModeDismiss ? "is-inverted-dark-dismiss-button" : ""}`
   }, /*#__PURE__*/external_React_default().createElement(FeatureHighlight, {
     position: position,
     feature: feature,
     dispatch: dispatch,
     message: /*#__PURE__*/external_React_default().createElement("div", {
       className: "shortcut-feature-highlight-content"
-    }, /*#__PURE__*/external_React_default().createElement("img", {
-      src: "chrome://global/skin/icons/open-in-new.svg",
-      width: "24",
-      height: "24",
+    }, /*#__PURE__*/external_React_default().createElement("picture", {
+      className: "follow-section-button-highlight-image"
+    }, /*#__PURE__*/external_React_default().createElement("source", {
+      srcSet: messageData.content?.darkModeImageURL || "chrome://newtab/content/data/content/assets/highlights/omc-newtab-shortcuts.svg",
+      media: "(prefers-color-scheme: dark)"
+    }), /*#__PURE__*/external_React_default().createElement("source", {
+      srcSet: messageData.content?.imageURL || "chrome://newtab/content/data/content/assets/highlights/omc-newtab-shortcuts.svg",
+      media: "(prefers-color-scheme: light)"
+    }), /*#__PURE__*/external_React_default().createElement("img", {
+      width: "320",
+      height: "195",
       alt: ""
-    }), /*#__PURE__*/external_React_default().createElement("div", {
+    })), /*#__PURE__*/external_React_default().createElement("div", {
       className: "shortcut-feature-highlight-copy"
-    }, /*#__PURE__*/external_React_default().createElement("p", {
+    }, messageData.content?.cardTitle ? /*#__PURE__*/external_React_default().createElement("p", {
+      className: "title"
+    }, messageData.content.cardTitle) : /*#__PURE__*/external_React_default().createElement("p", {
       className: "title",
       "data-l10n-id": "newtab-shortcuts-highlight-title"
-    }), /*#__PURE__*/external_React_default().createElement("p", {
+    }), messageData.content?.cardMessage ? /*#__PURE__*/external_React_default().createElement("p", {
+      className: "subtitle"
+    }, messageData.content.cardMessage) : /*#__PURE__*/external_React_default().createElement("p", {
       className: "subtitle",
       "data-l10n-id": "newtab-shortcuts-highlight-subtitle"
     }))),
@@ -9359,7 +9371,8 @@ class TopSiteLink extends (external_React_default()).PureComponent {
     }, /*#__PURE__*/external_React_default().createElement(ShortcutFeatureHighlight, {
       dispatch: this.props.dispatch,
       feature: "FEATURE_SHORTCUT_HIGHLIGHT",
-      position: "inset-block-end inset-inline-start"
+      position: "inset-block-end inset-inline-start",
+      messageData: this.props.Messages?.messageData
     })), children, impressionStats));
   }
 }
@@ -11462,19 +11475,20 @@ const PersonalizedCard = ({
 
 function FollowSectionButtonHighlight({
   arrowPosition,
-  position,
-  verticalPosition,
   dispatch,
-  handleDismiss,
+  feature,
   handleBlock,
-  feature
+  handleDismiss,
+  messageData,
+  position,
+  verticalPosition
 }) {
   const onDismiss = (0,external_React_namespaceObject.useCallback)(() => {
     handleDismiss();
     handleBlock();
   }, [handleDismiss, handleBlock]);
   return /*#__PURE__*/external_React_default().createElement("div", {
-    className: "follow-section-button-highlight"
+    className: `follow-section-button-highlight ${messageData.content?.darkModeDismiss ? "is-inverted-dark-dismiss-button" : ""}`
   }, /*#__PURE__*/external_React_default().createElement(FeatureHighlight, {
     position: position,
     arrowPosition: arrowPosition,
@@ -11483,17 +11497,28 @@ function FollowSectionButtonHighlight({
     dispatch: dispatch,
     message: /*#__PURE__*/external_React_default().createElement("div", {
       className: "follow-section-button-highlight-content"
-    }, /*#__PURE__*/external_React_default().createElement("img", {
-      src: "chrome://browser/content/asrouter/assets/smiling-fox-icon.svg",
-      width: "24",
-      height: "24",
+    }, /*#__PURE__*/external_React_default().createElement("picture", {
+      className: "follow-section-button-highlight-image"
+    }, /*#__PURE__*/external_React_default().createElement("source", {
+      srcSet: messageData.content?.darkModeImageURL || "chrome://newtab/content/data/content/assets/highlights/omc-newtab-follow.svg",
+      media: "(prefers-color-scheme: dark)"
+    }), /*#__PURE__*/external_React_default().createElement("source", {
+      srcSet: messageData.content?.imageURL || "chrome://newtab/content/data/content/assets/highlights/omc-newtab-follow.svg",
+      media: "(prefers-color-scheme: light)"
+    }), /*#__PURE__*/external_React_default().createElement("img", {
+      width: "320",
+      height: "195",
       alt: ""
-    }), /*#__PURE__*/external_React_default().createElement("div", {
+    })), /*#__PURE__*/external_React_default().createElement("div", {
       className: "follow-section-button-highlight-copy"
-    }, /*#__PURE__*/external_React_default().createElement("p", {
+    }, messageData.content?.cardTitle ? /*#__PURE__*/external_React_default().createElement("p", {
+      className: "title"
+    }, messageData.content.cardTitle) : /*#__PURE__*/external_React_default().createElement("p", {
       className: "title",
       "data-l10n-id": "newtab-section-follow-highlight-title"
-    }), /*#__PURE__*/external_React_default().createElement("p", {
+    }), messageData.content?.cardMessage ? /*#__PURE__*/external_React_default().createElement("p", {
+      className: "subtitle"
+    }, messageData.content.cardMessage) : /*#__PURE__*/external_React_default().createElement("p", {
       className: "subtitle",
       "data-l10n-id": "newtab-section-follow-highlight-subtitle"
     }))),
@@ -11518,13 +11543,9 @@ function LocationSearch({
   const [selectedLocation, setSelectedLocation] = (0,external_React_namespaceObject.useState)("");
   const suggestedLocations = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Weather.suggestedLocations);
   const locationSearchString = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Weather.locationSearchString);
-  const prefs = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Prefs.values);
-  const showWeatherOptIn = prefs["system.showWeatherOptIn"];
-  const optInAccepted = prefs["weather.optInAccepted"];
   const [userInput, setUserInput] = (0,external_React_namespaceObject.useState)(locationSearchString || "");
   const inputRef = (0,external_React_namespaceObject.useRef)(null);
   const dispatch = (0,external_ReactRedux_namespaceObject.useDispatch)();
-  const canUseUserLocation = showWeatherOptIn && optInAccepted;
   (0,external_React_namespaceObject.useEffect)(() => {
     if (selectedLocation) {
       dispatch(actionCreators.AlsoToMain({
@@ -11547,29 +11568,11 @@ function LocationSearch({
   (0,external_React_namespaceObject.useEffect)(() => {
     inputRef?.current?.focus();
   }, [inputRef]);
-  function handleOptInLocation() {
-    (0,external_ReactRedux_namespaceObject.batch)(() => {
-      dispatch(actionCreators.AlsoToMain({
-        type: actionTypes.WEATHER_USER_OPT_IN_LOCATION
-      }));
-      dispatch(actionCreators.BroadcastToContent({
-        type: actionTypes.WEATHER_SEARCH_ACTIVE,
-        data: false
-      }));
-    });
-  }
   function handleChange(event) {
     const {
       value
     } = event.target;
     setUserInput(value);
-
-    // If a user from a location listed optIn-region-weather-config pref selects Yes from the opt-in dialog,
-    // a persistent value of "Use my location" will show up when focussed on the Input element
-    if (value === "Use my location") {
-      handleOptInLocation();
-      return;
-    }
 
     // if the user input contains less than three characters and suggestedLocations is not an empty array,
     // reset suggestedLocations to [] so there aren't incorrect items in the datalist
@@ -11627,10 +11630,7 @@ function LocationSearch({
     onClick: handleCloseSearch
   }), /*#__PURE__*/external_React_default().createElement("datalist", {
     id: "merino-location-list"
-  }, canUseUserLocation && /*#__PURE__*/external_React_default().createElement("option", {
-    value: "Use my location",
-    selected: true
-  }, "Use my location"), (suggestedLocations || []).map(merinoLocation => /*#__PURE__*/external_React_default().createElement("option", {
+  }, (suggestedLocations || []).map(merinoLocation => /*#__PURE__*/external_React_default().createElement("option", {
     value: merinoLocation.key,
     key: merinoLocation.key
   }, merinoLocation.localized_name, ",", " ", merinoLocation.administrative_area.localized_name)))));
@@ -11821,9 +11821,8 @@ class _Weather extends (external_React_default()).PureComponent {
     (0,external_ReactRedux_namespaceObject.batch)(() => {
       this.props.dispatch(actionCreators.SetPref("weather.optInAccepted", true));
       this.props.dispatch(actionCreators.SetPref("weather.optInDisplayed", false));
-      this.props.dispatch(actionCreators.BroadcastToContent({
-        type: actionTypes.WEATHER_SEARCH_ACTIVE,
-        data: true
+      this.props.dispatch(actionCreators.AlsoToMain({
+        type: actionTypes.WEATHER_USER_OPT_IN_LOCATION
       }));
     });
   };
@@ -11871,8 +11870,8 @@ class _Weather extends (external_React_default()).PureComponent {
 
     // Show static weather data only if:
     // - weather is enabled on customization menu
-    // weather opt-in pref is enabled
-    // static weather data is enabled
+    // - weather opt-in pref is enabled
+    // - static weather data is enabled
     const showStaticData = isUserWeatherEnabled && isOptInEnabled && staticDataEnabled;
 
     // Note: The temperature units/display options will become secondary menu items
@@ -12229,7 +12228,8 @@ function CardSection({
     verticalPosition: "inset-block-center",
     position: "arrow-inline-start",
     dispatch: dispatch,
-    feature: "FEATURE_FOLLOW_SECTION_BUTTON"
+    feature: "FEATURE_FOLLOW_SECTION_BUTTON",
+    messageData: messageData
   })), !anySectionsFollowed && sectionPosition === 1 && shouldShowOMCHighlight(messageData, "FollowSectionButtonAltHighlight") && /*#__PURE__*/external_React_default().createElement(MessageWrapper, {
     dispatch: dispatch
   }, /*#__PURE__*/external_React_default().createElement(FollowSectionButtonHighlight, {
@@ -16213,7 +16213,7 @@ function WallpaperFeatureHighlight({
     messageData
   } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Messages);
   return /*#__PURE__*/external_React_default().createElement("div", {
-    className: "wallpaper-feature-highlight"
+    className: `wallpaper-feature-highlight ${messageData.content?.darkModeDismiss ? "is-inverted-dark-dismiss-button" : ""}`
   }, /*#__PURE__*/external_React_default().createElement(FeatureHighlight, {
     position: position,
     "data-l10n-id": "feature-highlight-wallpaper",
@@ -16221,23 +16221,38 @@ function WallpaperFeatureHighlight({
     dispatch: dispatch,
     message: /*#__PURE__*/external_React_default().createElement("div", {
       className: "wallpaper-feature-highlight-content"
-    }, /*#__PURE__*/external_React_default().createElement("img", {
-      src: "chrome://newtab/content/data/content/assets/custom-wp-highlight.png",
-      alt: "",
+    }, /*#__PURE__*/external_React_default().createElement("picture", {
+      className: "follow-section-button-highlight-image"
+    }, /*#__PURE__*/external_React_default().createElement("source", {
+      srcSet: messageData.content?.darkModeImageURL || "chrome://newtab/content/data/content/assets/highlights/omc-newtab-wallpapers.svg",
+      media: "(prefers-color-scheme: dark)"
+    }), /*#__PURE__*/external_React_default().createElement("source", {
+      srcSet: messageData.content?.imageURL || "chrome://newtab/content/data/content/assets/highlights/omc-newtab-wallpapers.svg",
+      media: "(prefers-color-scheme: light)"
+    }), /*#__PURE__*/external_React_default().createElement("img", {
       width: "320",
-      height: "195"
-    }), /*#__PURE__*/external_React_default().createElement("p", {
+      height: "195",
+      alt: ""
+    })), messageData.content?.cardTitle ? /*#__PURE__*/external_React_default().createElement("p", {
+      className: "title"
+    }, messageData.content.cardTitle) : /*#__PURE__*/external_React_default().createElement("p", {
       className: "title",
-      "data-l10n-id": messageData.content.title
-    }), /*#__PURE__*/external_React_default().createElement("p", {
+      "data-l10n-id": messageData.content.title || "newtab-new-user-custom-wallpaper-title"
+    }), messageData.content?.cardMessage ? /*#__PURE__*/external_React_default().createElement("p", {
+      className: "subtitle"
+    }, messageData.content.cardMessage) : /*#__PURE__*/external_React_default().createElement("p", {
       className: "subtitle",
-      "data-l10n-id": messageData.content.subtitle
+      "data-l10n-id": messageData.content.subtitle || "newtab-new-user-custom-wallpaper-subtitle"
     }), /*#__PURE__*/external_React_default().createElement("span", {
       className: "button-wrapper"
-    }, /*#__PURE__*/external_React_default().createElement("moz-button", {
+    }, messageData.content?.cardCta ? /*#__PURE__*/external_React_default().createElement("moz-button", {
       type: "default",
       onClick: () => onToggleClick("open-customize-menu"),
-      "data-l10n-id": messageData.content.cta
+      label: messageData.content.cardCta
+    }) : /*#__PURE__*/external_React_default().createElement("moz-button", {
+      type: "default",
+      onClick: () => onToggleClick("open-customize-menu"),
+      "data-l10n-id": messageData.content.cta || "newtab-new-user-custom-wallpaper-cta"
     }))),
     toggle: /*#__PURE__*/external_React_default().createElement("div", {
       className: "icon icon-help"
@@ -16981,8 +16996,6 @@ const external_Redux_namespaceObject = Redux;
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-/* eslint-env mozilla/remote-page */
 
 
 // We disable import checking here as redux is installed via the npm packages

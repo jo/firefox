@@ -356,7 +356,10 @@ class Core(
                     repository = DefaultHomepageAsANewTabPreferenceRepository(context.settings()),
                 ),
                 AboutHomeMiddleware(
-                    homepageTitle = context.getString(R.string.tab_tray_homepage_tab),
+                    homepageTitle = context.getString(
+                        R.string.tab_tray_homepage_tab_2,
+                        context.getString(R.string.app_name),
+                    ),
                 ),
                 BrowserVisualCompletenessMiddleware(visualCompletenessQueue),
             )
@@ -615,7 +618,7 @@ class Core(
     val topSitesStorage by lazyMonitored {
         val defaultTopSites = mutableListOf<Pair<String, String>>()
 
-        strictMode.resetAfter(StrictMode.allowThreadDiskReads()) {
+        strictMode.allowViolation(StrictMode::allowThreadDiskReads) {
             if (!context.settings().defaultTopSitesAdded) {
                 defaultTopSites.add(
                     Pair(
